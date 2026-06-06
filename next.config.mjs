@@ -3,8 +3,9 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(__dirname);
-// Monorepo root (RN app + web_kinmel each have a lockfile). Next requires this to match `turbopack.root`.
+// Local monorepo layout only (RN app + web_kinmel). Not present on Vercel/GitHub deploys.
 const repoRoot = path.resolve(webRoot, "..");
+const isVercel = process.env.VERCEL === "1";
 
 /**
  * HTTP proxy for `/kinmel-backend/*` is implemented in
@@ -14,9 +15,9 @@ const repoRoot = path.resolve(webRoot, "..");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  outputFileTracingRoot: repoRoot,
+  ...(isVercel ? {} : { outputFileTracingRoot: repoRoot }),
   turbopack: {
-    root: repoRoot,
+    ...(isVercel ? {} : { root: repoRoot }),
     resolveAlias: {
       tailwindcss: path.join(webRoot, "node_modules/tailwindcss"),
     },
