@@ -7,3 +7,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     autoRefreshToken: true,
   },
 });
+
+if (typeof window !== "undefined") {
+  void import("@/lib/supabaseAuth").then(({ getSafeSession }) => getSafeSession());
+}

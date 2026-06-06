@@ -1,12 +1,18 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { RequireAuth } from "@/components/RequireAuth";
 import { useAppState } from "@/components/AppProvider";
+import { RtmpUrlChangeDialog } from "@/components/RtmpUrlChangeDialog";
 import { useStreamConfig } from "@/hooks/useStreamConfig";
+import { DEV_INSTAGRAM_RTMP_URL } from "@/lib/publicConfig";
 
-const INSTAGRAM_RTMP_URL = "rtmps://edgetee-upload-nrt1-2.xx.fbcdn.net:443/rtmp/";
+function devFallbackRtmpUrl(platform: "instagram" | "twitch" | "custom"): string {
+  if (platform === "instagram" && DEV_INSTAGRAM_RTMP_URL) {
+    return DEV_INSTAGRAM_RTMP_URL;
+  }
+  return "";
+}
 
 export default function StreamSetupPage() {
   const params = useParams<{ eventId: string }>();
@@ -16,37 +22,86 @@ export default function StreamSetupPage() {
   const event = getEventById(eventId);
   const streamConfig = useStreamConfig(eventId ?? null);
 
-  const [rtmpUrl, setRtmpUrl] = useState(INSTAGRAM_RTMP_URL);
+  const [rtmpUrl, setRtmpUrl] = useState("");
   const [streamKey, setStreamKey] = useState("");
   const [platform, setPlatform] = useState<"instagram" | "twitch" | "custom">(
     "instagram"
   );
   const [saveAttempted, setSaveAttempted] = useState(false);
+  const [rtmpChangeOpen, setRtmpChangeOpen] = useState(false);
+  const [revertInput, setRevertInput] = useState("");
+  const savedRtmpUrlRef = useRef("");
+  const hydratedRef = useRef(false);
 
   useEffect(() => {
-    if (streamConfig.config) {
-      queueMicrotask(() => {
-        setRtmpUrl(streamConfig.config!.rtmp_url || INSTAGRAM_RTMP_URL);
-        setStreamKey(streamConfig.config!.stream_key || "");
-        setPlatform(streamConfig.config!.platform || "instagram");
-      });
+    if (streamConfig.status !== "ready" || hydratedRef.current) return;
+
+    const businessRtmp = streamConfig.rtmpDefault?.rtmp_url?.trim() ?? "";
+    const sessionRtmp = streamConfig.config?.rtmp_url?.trim() ?? "";
+    const sessionPlatform = streamConfig.config?.platform ?? "instagram";
+    const effectivePlatform =
+      streamConfig.rtmpDefault?.platform ?? sessionPlatform;
+
+    savedRtmpUrlRef.current = businessRtmp;
+    const prepopulated =
+      sessionRtmp ||
+      businessRtmp ||
+      devFallbackRtmpUrl(effectivePlatform);
+
+    queueMicrotask(() => {
+      setPlatform(effectivePlatform);
+      setRtmpUrl(prepopulated);
+      setStreamKey(streamConfig.config?.stream_key ?? "");
+      hydratedRef.current = true;
+    });
+  }, [streamConfig.config, streamConfig.rtmpDefault, streamConfig.status]);
+
+  const persistAndContinue = async (persistRtmpDefault: boolean) => {
+    const effectiveUrl = rtmpUrl.trim();
+    const saved = await streamConfig.save({
+      platform,
+      rtmpUrl: effectiveUrl,
+      streamKey: streamKey.trim(),
+      persistRtmpDefault,
+    });
+    if (saved) {
+      if (persistRtmpDefault) {
+        savedRtmpUrlRef.current = effectiveUrl;
+      }
+      router.push(`/live-selling/${eventId}/live`);
     }
-  }, [streamConfig.config]);
+  };
 
   const onSubmit = async (eventForm: FormEvent<HTMLFormElement>) => {
     eventForm.preventDefault();
     setSaveAttempted(true);
+
     const effectiveUrl = rtmpUrl.trim();
-    await streamConfig.save({
-      platform,
-      rtmpUrl: effectiveUrl,
-      streamKey: streamKey.trim(),
-    });
-    router.push(`/live-selling/${eventId}/live`);
+    const savedUrl = savedRtmpUrlRef.current;
+
+    if (savedUrl && effectiveUrl !== savedUrl) {
+      setRevertInput("");
+      setRtmpChangeOpen(true);
+      return;
+    }
+
+    const persistRtmpDefault = !savedUrl || effectiveUrl !== savedUrl;
+    await persistAndContinue(persistRtmpDefault);
+  };
+
+  const onConfirmRtmpChange = async () => {
+    setRtmpChangeOpen(false);
+    await persistAndContinue(true);
+  };
+
+  const onRevertRtmpChange = () => {
+    setRtmpUrl(savedRtmpUrlRef.current);
+    setRevertInput("");
+    setRtmpChangeOpen(false);
   };
 
   return (
-    <RequireAuth>
+    <>
       {!event ? (
         <section className="rounded-xl border border-zinc-200 bg-white p-6">
           <h1 className="text-xl font-semibold">Event not found</h1>
@@ -55,9 +110,13 @@ export default function StreamSetupPage() {
         <section className="space-y-6">
           <div className="rounded-xl border border-zinc-200 bg-white p-6">
             <h1 className="text-2xl font-semibold">Stream Setup</h1>
-            <p className="mt-1 text-sm text-zinc-600">
-              Event: {event.name}
-            </p>
+            <p className="mt-1 text-sm text-zinc-600">Event: {event.name}</p>
+            {savedRtmpUrlRef.current ? (
+              <p className="mt-2 text-sm text-zinc-500">
+                Your saved RTMP URL is prefilled below. You can edit or clear it
+                if Instagram gave you a different server this time.
+              </p>
+            ) : null}
           </div>
           <section className="rounded-xl border border-zinc-200 bg-white p-6">
             <form className="space-y-4" onSubmit={onSubmit}>
@@ -66,7 +125,9 @@ export default function StreamSetupPage() {
                 <select
                   value={platform}
                   onChange={(e) =>
-                    setPlatform(e.target.value as "instagram" | "twitch" | "custom")
+                    setPlatform(
+                      e.target.value as "instagram" | "twitch" | "custom"
+                    )
                   }
                   className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-500"
                 >
@@ -81,6 +142,7 @@ export default function StreamSetupPage() {
                   value={rtmpUrl}
                   onChange={(e) => setRtmpUrl(e.target.value)}
                   required
+                  placeholder="Paste the RTMP server URL from Instagram"
                   className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-500"
                 />
               </label>
@@ -118,7 +180,17 @@ export default function StreamSetupPage() {
           </section>
         </section>
       )}
-    </RequireAuth>
+
+      <RtmpUrlChangeDialog
+        open={rtmpChangeOpen}
+        savedUrl={savedRtmpUrlRef.current}
+        newUrl={rtmpUrl.trim()}
+        revertInput={revertInput}
+        onRevertInputChange={setRevertInput}
+        onConfirm={onConfirmRtmpChange}
+        onRevert={onRevertRtmpChange}
+        busy={streamConfig.status === "saving"}
+      />
+    </>
   );
 }
-

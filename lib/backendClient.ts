@@ -1,5 +1,13 @@
-import { PUBLIC_BACKEND_URL } from "@/lib/publicConfig";
+import { getBackendHttpBase } from "@/lib/publicConfig";
+import { backendRequestHeaders } from "@/lib/backendFetch";
 import { supabase } from "@/lib/supabase";
+import { getSafeSession } from "@/lib/supabaseAuth";
+
+function backendUrl(path: string): string {
+  const base = getBackendHttpBase().replace(/\/+$/, "");
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${suffix}`;
+}
 
 export type FeaturedProduct = {
   id: string;
@@ -36,16 +44,27 @@ export type StreamConfig = {
   updated_at: string | null;
 };
 
+export type BusinessRtmpDefault = {
+  platform: "instagram" | "twitch" | "custom";
+  rtmp_url: string;
+  updated_at: string | null;
+};
+
+export type StreamConfigEnvelope = {
+  config: StreamConfig | null;
+  rtmp_default: BusinessRtmpDefault | null;
+};
+
 async function authHeaders(): Promise<HeadersInit> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
+  const session = await getSafeSession();
+  const token = session?.access_token;
   if (!token) {
     throw new Error("Not authenticated");
   }
-  return {
+  return backendRequestHeaders({
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
-  };
+  });
 }
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -56,7 +75,12 @@ async function readJson<T>(res: Response): Promise<T> {
       const parsed = text ? JSON.parse(text) : null;
       if (parsed?.error) message = String(parsed.error);
     } catch {
-      if (text) message = text;
+      if (text?.trimStart().startsWith("<!")) {
+        message =
+          "API returned HTML instead of JSON. Check that Flask is running and the Kinmel backend proxy is configured.";
+      } else if (text) {
+        message = text.slice(0, 280);
+      }
     }
     throw new Error(message);
   }
@@ -72,7 +96,7 @@ async function safeBackendFetch(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(
-      `NetworkError when attempting to fetch resource. Backend: ${PUBLIC_BACKEND_URL}. Details: ${message}`
+      `NetworkError when attempting to fetch resource. Backend: ${getBackendHttpBase()}. Details: ${message}`
     );
   }
 }
@@ -82,7 +106,7 @@ export async function fetchOverlayState(
 ): Promise<OverlayStateEnvelope> {
   const headers = await authHeaders();
   const res = await safeBackendFetch(
-    `${PUBLIC_BACKEND_URL}/live-sessions/${liveSessionId}/overlay-state`,
+    backendUrl(`/live-sessions/${encodeURIComponent(liveSessionId)}/overlay-state`),
     { headers, cache: "no-store" }
   );
   return readJson<OverlayStateEnvelope>(res);
@@ -101,7 +125,7 @@ export async function pushOverlayState(
 ): Promise<OverlayStateEnvelope> {
   const headers = await authHeaders();
   const res = await safeBackendFetch(
-    `${PUBLIC_BACKEND_URL}/live-sessions/${liveSessionId}/overlay-state`,
+    backendUrl(`/live-sessions/${encodeURIComponent(liveSessionId)}/overlay-state`),
     {
       method: "PUT",
       headers,
@@ -113,14 +137,13 @@ export async function pushOverlayState(
 
 export async function fetchStreamConfig(
   liveSessionId: string
-): Promise<StreamConfig | null> {
+): Promise<StreamConfigEnvelope> {
   const headers = await authHeaders();
   const res = await safeBackendFetch(
-    `${PUBLIC_BACKEND_URL}/live-sessions/${liveSessionId}/stream-config`,
+    backendUrl(`/live-sessions/${encodeURIComponent(liveSessionId)}/stream-config`),
     { headers, cache: "no-store" }
   );
-  const body = await readJson<{ config: StreamConfig | null }>(res);
-  return body.config ?? null;
+  return readJson<StreamConfigEnvelope>(res);
 }
 
 export type StreamConfigInput = {
@@ -128,15 +151,16 @@ export type StreamConfigInput = {
   rtmp_url: string;
   stream_key: string;
   expires_at?: string | null;
+  persist_rtmp_default?: boolean;
 };
 
 export async function saveStreamConfig(
   liveSessionId: string,
   input: StreamConfigInput
-): Promise<StreamConfig> {
+): Promise<StreamConfigEnvelope> {
   const headers = await authHeaders();
   const res = await safeBackendFetch(
-    `${PUBLIC_BACKEND_URL}/live-sessions/${liveSessionId}/stream-config`,
+    backendUrl(`/live-sessions/${encodeURIComponent(liveSessionId)}/stream-config`),
     {
       method: "PUT",
       headers,
@@ -145,9 +169,9 @@ export async function saveStreamConfig(
         rtmp_url: input.rtmp_url,
         stream_key: input.stream_key,
         expires_at: input.expires_at ?? null,
+        persist_rtmp_default: Boolean(input.persist_rtmp_default),
       }),
     }
   );
-  const body = await readJson<{ config: StreamConfig }>(res);
-  return body.config;
+  return readJson<StreamConfigEnvelope>(res);
 }

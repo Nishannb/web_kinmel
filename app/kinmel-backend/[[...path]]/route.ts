@@ -43,6 +43,7 @@ async function proxy(request: NextRequest, path: string[] | undefined) {
       method: request.method,
       headers,
       body: body && body.byteLength > 0 ? body : undefined,
+      signal: AbortSignal.timeout(120_000),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

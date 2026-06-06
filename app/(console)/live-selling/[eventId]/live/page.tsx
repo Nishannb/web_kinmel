@@ -3,11 +3,12 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { RequireAuth } from "@/components/RequireAuth";
 import { useAppState } from "@/components/AppProvider";
 import { useOverlaySync } from "@/hooks/useOverlaySync";
+import { formatStorefrontPrice } from "@/lib/formatNpr";
 import { getBackendWsBase } from "@/lib/publicConfig";
 import { supabase } from "@/lib/supabase";
+import { getSafeSession } from "@/lib/supabaseAuth";
 
 type LiveCommentItem = {
   id: string;
@@ -126,9 +127,7 @@ export default function LiveWorkspacePage() {
 
     const connect = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        const session = await getSafeSession();
         const token = session?.access_token;
         if (!token) return;
         ws = new WebSocket(`${socketBase}/ws/live-sessions/${event.id}/comments`);
@@ -311,7 +310,7 @@ export default function LiveWorkspacePage() {
   const selectedOverlayProductId = overlaySync.settings.visibleProductIds[0] ?? null;
 
   return (
-    <RequireAuth>
+    <>
       {!event ? (
         <section className="rounded-xl border border-zinc-200 bg-white p-6">
           <h1 className="text-xl font-semibold">Event not found</h1>
@@ -414,15 +413,15 @@ export default function LiveWorkspacePage() {
                             product.discountedPrice < product.price ? (
                               <span className="inline-flex items-center gap-2">
                                 <span className="text-red-600 line-through">
-                                  {product.currency} {product.price.toFixed(2)}
+                                  {formatStorefrontPrice(product.price, product.currency)}
                                 </span>
                                 <span className="font-semibold text-zinc-800">
-                                  {product.currency} {product.discountedPrice.toFixed(2)}
+                                  {formatStorefrontPrice(product.discountedPrice, product.currency)}
                                 </span>
                               </span>
                             ) : (
                               <span>
-                                {product.currency} {product.price.toFixed(2)}
+                                {formatStorefrontPrice(product.price, product.currency)}
                               </span>
                             )}
                           </td>
@@ -540,7 +539,7 @@ export default function LiveWorkspacePage() {
                         className="flex items-center justify-between rounded-md border border-zinc-200 px-3 py-2"
                       >
                         <span className="text-sm">
-                          {product.name} ({product.currency} {product.price.toFixed(2)})
+                          {product.name} ({formatStorefrontPrice(product.price, product.currency)})
                         </span>
                         <button
                           type="button"
@@ -660,7 +659,7 @@ export default function LiveWorkspacePage() {
           </aside>
         </section>
       )}
-    </RequireAuth>
+    </>
   );
 }
 

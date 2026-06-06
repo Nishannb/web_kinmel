@@ -95,3 +95,7 @@ export function getBackendWsBase(): string {
     .replace(/^https/i, "wss")
     .replace(/^http/i, "ws");
 }
+
+/** Dev-only fallback when no saved RTMP URL exists for the business. */
+export const DEV_INSTAGRAM_RTMP_URL =
+  process.env.NEXT_PUBLIC_INSTAGRAM_RTMP_URL?.trim() ?? "";

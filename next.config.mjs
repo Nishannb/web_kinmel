@@ -2,6 +2,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const webRoot = path.resolve(__dirname);
+// Monorepo root (RN app + web_kinmel each have a lockfile). Next requires this to match `turbopack.root`.
+const repoRoot = path.resolve(webRoot, "..");
 
 /**
  * HTTP proxy for `/kinmel-backend/*` is implemented in
@@ -11,8 +14,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingRoot: repoRoot,
   turbopack: {
-    root: __dirname,
+    root: repoRoot,
+    resolveAlias: {
+      tailwindcss: path.join(webRoot, "node_modules/tailwindcss"),
+    },
   },
 };
 

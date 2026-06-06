@@ -15,9 +15,9 @@ function safeNextPath(): string {
   return "/live-selling";
 }
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
-  const { login, user, isReady } = useAppState();
+  const { register, user, isReady } = useAppState();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export default function LoginPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      await login(phoneToEmail(cleanedPhone), password);
+      await register(phoneToEmail(cleanedPhone), password);
       router.push(safeNextPath());
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -52,7 +52,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-violet-50 px-4 py-10">
+    <div className="min-h-screen bg-gradient-to-br from-fuchsia-50 via-white to-sky-50 px-4 py-10">
       <div className="mx-auto max-w-lg">
         <div className="flex flex-col items-center gap-4">
           <KinmelBrandLink size="lg" />
@@ -63,10 +63,11 @@ export default function LoginPage() {
             ← Back to home
           </Link>
         </div>
-        <section className="mt-6 overflow-hidden rounded-3xl border border-sky-100 bg-white/90 p-8 shadow-xl shadow-sky-100/50">
-          <h1 className="text-2xl font-bold text-zinc-900">Log in</h1>
+        <section className="mt-6 overflow-hidden rounded-3xl border border-fuchsia-100 bg-white/90 p-8 shadow-xl shadow-fuchsia-100/40">
+          <h1 className="text-2xl font-bold text-zinc-900">Create your account</h1>
           <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-            Sign in with the same phone number and password you use on the Kinmel mobile app.
+            Use the same phone-based login pattern as the Kinmel mobile app. After registering, you
+            can open the workspace and download the iOS app to go live.
           </p>
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
             <label className="block space-y-1">
@@ -88,6 +89,7 @@ export default function LoginPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 className="w-full rounded-xl border border-zinc-200 bg-zinc-50/80 px-3 py-2.5 outline-none ring-violet-200 transition focus:border-violet-400 focus:ring-2"
                 required
+                minLength={6}
               />
             </label>
             {error ? (
@@ -98,15 +100,15 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-violet-700 disabled:opacity-60"
+              className="w-full rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-60"
             >
-              {isSubmitting ? "Signing in…" : "Continue"}
+              {isSubmitting ? "Creating account…" : "Register"}
             </button>
           </form>
           <p className="mt-6 text-center text-sm text-zinc-600">
-            New to Kinmel?{" "}
-            <Link href="/register" className="font-semibold text-violet-700 underline">
-              Register
+            Already have an account?{" "}
+            <Link href="/login" className="font-semibold text-violet-700 underline">
+              Log in
             </Link>
           </p>
         </section>

@@ -17,6 +17,7 @@ import {
   SessionUser,
 } from "@/lib/appTypes";
 import { supabase } from "@/lib/supabase";
+import { getSafeSession, isRecoverableAuthError, clearStaleAuthSession } from "@/lib/supabaseAuth";
 import { uploadProductImageToR2 } from "@/lib/uploadProductImageR2";
 
 type CreateEventInput = {
@@ -27,6 +28,7 @@ type CreateEventInput = {
 type CreateProductInput = {
   name: string;
   price: number;
+  buyCode: string;
   /** Required; uploaded to R2 before insert. */
   imageFile: File;
   productUrl?: string;
@@ -41,6 +43,7 @@ type AppContextValue = {
   isReady: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   createEvent: (input: CreateEventInput) => Promise<string>;
   deleteEvent: (eventId: string) => Promise<void>;
@@ -124,7 +127,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .order("created_at", { ascending: false }),
       supabase
         .from("products")
-        .select("id,name,price,currency,image_url,product_url")
+        .select("id,name,price,currency,image_url,product_url,sku")
         .eq("business_id", nextBusinessId)
         .eq("is_active", true)
         .order("updated_at", { ascending: false }),
@@ -143,9 +146,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       id: String(row.id),
       name: String(row.name),
       price: Number(row.price ?? 0),
-      currency: String(row.currency ?? "USD"),
+      currency: String(row.currency ?? "NPR"),
       imageUrl: row.image_url ?? undefined,
       productUrl: row.product_url ?? undefined,
+      buyCode: row.sku ? String(row.sku) : undefined,
     }));
     setCatalogProducts(nextCatalogProducts);
 
@@ -180,7 +184,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         id: String(productObj.id),
         name: String(productObj.name),
         price: Number(productObj.price ?? 0),
-        currency: String(productObj.currency ?? "USD"),
+        currency: String(productObj.currency ?? "NPR"),
         imageUrl: productObj.image_url ?? undefined,
         productUrl: productObj.product_url ?? undefined,
         discountedPrice:
@@ -205,21 +209,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshData = useCallback(async () => {
-    const sessionResult = await supabase.auth.getSession();
-    const authUser = sessionResult.data.session?.user ?? null;
-    if (!authUser) {
-      setUser(null);
-      setBusinessId(null);
-      setInstagramAccounts([]);
-      setEvents([]);
-      setCatalogProducts([]);
-      return;
+    try {
+      const session = await getSafeSession();
+      const authUser = session?.user ?? null;
+      if (!authUser) {
+        setUser(null);
+        setBusinessId(null);
+        setInstagramAccounts([]);
+        setEvents([]);
+        setCatalogProducts([]);
+        return;
+      }
+      setUser({
+        id: authUser.id,
+        email: authUser.email ?? "unknown@example.com",
+      });
+      await loadBusinessData(authUser.id);
+    } catch (err) {
+      if (isRecoverableAuthError(err as { message?: string; code?: string })) {
+        await clearStaleAuthSession();
+        setUser(null);
+        setBusinessId(null);
+        setInstagramAccounts([]);
+        setEvents([]);
+        setCatalogProducts([]);
+        return;
+      }
+      throw err;
     }
-    setUser({
-      id: authUser.id,
-      email: authUser.email ?? "unknown@example.com",
-    });
-    await loadBusinessData(authUser.id);
   }, [loadBusinessData]);
 
   useEffect(() => {
@@ -228,8 +245,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await refreshData();
         setError(null);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message);
+        if (isRecoverableAuthError(err as { message?: string; code?: string })) {
+          await clearStaleAuthSession();
+          setUser(null);
+          setBusinessId(null);
+          setInstagramAccounts([]);
+          setEvents([]);
+          setCatalogProducts([]);
+          setError(null);
+        } else {
+          const message = err instanceof Error ? err.message : String(err);
+          setError(message);
+        }
       } finally {
         setIsReady(true);
       }
@@ -262,6 +289,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (email: string, password: string) => {
       if (!isReady) return;
       const result = await supabase.auth.signInWithPassword({ email, password });
+      if (result.error) {
+        throw result.error;
+      }
+      await refreshData();
+    },
+    [isReady, refreshData]
+  );
+
+  const register = useCallback(
+    async (email: string, password: string) => {
+      if (!isReady) return;
+      const result = await supabase.auth.signUp({ email, password });
       if (result.error) {
         throw result.error;
       }
@@ -375,13 +414,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           business_id: businessId,
           name: input.name,
           price: input.price,
-          currency: "USD",
+          currency: "NPR",
           image_url: imageUrl,
           product_url: null,
+          sku: callNumber,
         })
         .select("id")
         .single();
       if (productRes.error) {
+        if (productRes.error.code === "23505") {
+          throw new Error("That buy code is already used by another product.");
+        }
         throw productRes.error;
       }
       const productId = String(productRes.data.id);
@@ -417,6 +460,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!businessId) {
         throw new Error("No business found for this user.");
       }
+      const buyCode = input.buyCode.trim();
+      if (!buyCode) {
+        throw new Error("Buy code is required.");
+      }
+      if (/\s/.test(buyCode)) {
+        throw new Error("Buy code must be a single word with no spaces.");
+      }
       if (!input.imageFile || input.imageFile.size === 0) {
         throw new Error("A product image is required.");
       }
@@ -431,13 +481,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           business_id: businessId,
           name: input.name,
           price: input.price,
-          currency: "USD",
+          currency: "NPR",
           image_url: imageUrl,
           product_url: null,
+          sku: buyCode,
         })
         .select("id")
         .single();
       if (productRes.error) {
+        if (productRes.error.code === "23505") {
+          throw new Error("That buy code is already used by another product.");
+        }
         throw productRes.error;
       }
       const productId = String(productRes.data.id);
@@ -578,6 +632,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isReady,
       error,
       login,
+      register,
       logout,
       createEvent,
       deleteEvent,
@@ -609,6 +664,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isReady,
       login,
       logout,
+      register,
       refreshData,
       updateOverlaySettings,
       user,

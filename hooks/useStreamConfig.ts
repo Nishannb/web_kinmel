@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  BusinessRtmpDefault,
   fetchStreamConfig,
   saveStreamConfig,
   StreamConfig,
@@ -11,6 +12,7 @@ export type StreamConfigStatus = "idle" | "loading" | "saving" | "ready" | "erro
 
 export function useStreamConfig(liveSessionId: string | null): {
   config: StreamConfig | null;
+  rtmpDefault: BusinessRtmpDefault | null;
   status: StreamConfigStatus;
   error: string | null;
   save: (input: {
@@ -18,10 +20,14 @@ export function useStreamConfig(liveSessionId: string | null): {
     rtmpUrl: string;
     streamKey: string;
     expiresAt?: string | null;
-  }) => Promise<void>;
+    persistRtmpDefault?: boolean;
+  }) => Promise<boolean>;
   reload: () => Promise<void>;
 } {
   const [config, setConfig] = useState<StreamConfig | null>(null);
+  const [rtmpDefault, setRtmpDefault] = useState<BusinessRtmpDefault | null>(
+    null
+  );
   const [status, setStatus] = useState<StreamConfigStatus>("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +36,8 @@ export function useStreamConfig(liveSessionId: string | null): {
     setStatus("loading");
     try {
       const result = await fetchStreamConfig(liveSessionId);
-      setConfig(result);
+      setConfig(result.config);
+      setRtmpDefault(result.rtmp_default);
       setStatus("ready");
       setError(null);
     } catch {
@@ -53,8 +60,9 @@ export function useStreamConfig(liveSessionId: string | null): {
       rtmpUrl: string;
       streamKey: string;
       expiresAt?: string | null;
-    }) => {
-      if (!liveSessionId) return;
+      persistRtmpDefault?: boolean;
+    }): Promise<boolean> => {
+      if (!liveSessionId) return false;
       setStatus("saving");
       setError(null);
       try {
@@ -63,21 +71,25 @@ export function useStreamConfig(liveSessionId: string | null): {
           rtmp_url: input.rtmpUrl,
           stream_key: input.streamKey,
           expires_at: input.expiresAt ?? null,
+          persist_rtmp_default: input.persistRtmpDefault,
         });
-        setConfig(result);
+        setConfig(result.config);
+        setRtmpDefault(result.rtmp_default);
         setStatus("ready");
         setError(null);
+        return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         setStatus("error");
         setError(message);
+        return false;
       }
     },
     [liveSessionId]
   );
 
   return useMemo(
-    () => ({ config, status, error, save, reload }),
-    [config, error, reload, save, status]
+    () => ({ config, rtmpDefault, status, error, save, reload }),
+    [config, error, reload, rtmpDefault, save, status]
   );
 }

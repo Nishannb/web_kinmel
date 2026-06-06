@@ -1,5 +1,6 @@
 import { backendRequestHeaders } from "@/lib/backendFetch";
 import { getBackendHttpBase } from "@/lib/publicConfig";
+import { getSafeSession } from "@/lib/supabaseAuth";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 function uint8ArrayToBase64(bytes: Uint8Array): string {
@@ -19,8 +20,8 @@ export async function uploadProductImageToR2(
   businessId: string,
   file: File
 ): Promise<string> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
+  const session = await getSafeSession();
+  const token = session?.access_token;
   if (!token) {
     throw new Error("You must be signed in to upload images.");
   }

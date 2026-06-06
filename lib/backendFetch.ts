@@ -19,14 +19,61 @@ export function backendRequestHeaders(
   };
 }
 
+export type PublicCatalogProduct = {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  image_url: string;
+  product_url: string;
+};
+
+export async function fetchPublicCatalogJson(opts: {
+  businessId: string;
+  excludeProductId?: string;
+  limit?: number;
+}): Promise<{ products: PublicCatalogProduct[] }> {
+  const sp = new URLSearchParams({
+    business_id: opts.businessId,
+    limit: String(opts.limit ?? 24),
+  });
+  if (opts.excludeProductId) {
+    sp.set("exclude", opts.excludeProductId);
+  }
+  const url = `${getBackendHttpBase()}/public/catalog?${sp.toString()}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: backendRequestHeaders(),
+    cache: "no-store",
+  });
+  const raw = await res.text();
+  let data: unknown;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    throw new Error("Catalog returned non-JSON (check backend URL).");
+  }
+  if (!res.ok) {
+    const err = data as { error?: string } | null;
+    throw new Error(err?.error || `Failed to load catalog (${res.status})`);
+  }
+  return data as { products: PublicCatalogProduct[] };
+}
+
 export async function fetchPublicProductJson(productId: string): Promise<{
   product: {
     id: string;
     name: string;
+    description?: string;
     price: number;
     currency: string;
     image_url: string;
     product_url: string;
+    business_id?: string;
+    seller?: {
+      business_name?: string;
+      instagram_username?: string;
+    };
   };
 }> {
   const id = encodeURIComponent(productId);
@@ -51,10 +98,16 @@ export async function fetchPublicProductJson(productId: string): Promise<{
     product: {
       id: string;
       name: string;
+      description?: string;
       price: number;
       currency: string;
       image_url: string;
       product_url: string;
+      business_id?: string;
+      seller?: {
+        business_name?: string;
+        instagram_username?: string;
+      };
     };
   };
 }
