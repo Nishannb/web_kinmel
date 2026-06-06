@@ -1,11 +1,12 @@
+import { existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(__dirname);
-// Local monorepo layout only (RN app + web_kinmel). Not present on Vercel/GitHub deploys.
+// Only when web_kinmel sits next to the RN app locally — not on GitHub/Vercel checkouts.
 const repoRoot = path.resolve(webRoot, "..");
-const isVercel = process.env.VERCEL === "1";
+const isLocalMonorepo = existsSync(path.join(repoRoot, "App.tsx"));
 
 /**
  * HTTP proxy for `/kinmel-backend/*` is implemented in
@@ -15,9 +16,9 @@ const isVercel = process.env.VERCEL === "1";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  ...(isVercel ? {} : { outputFileTracingRoot: repoRoot }),
+  ...(isLocalMonorepo ? { outputFileTracingRoot: repoRoot } : {}),
   turbopack: {
-    ...(isVercel ? {} : { root: repoRoot }),
+    ...(isLocalMonorepo ? { root: repoRoot } : {}),
     resolveAlias: {
       tailwindcss: path.join(webRoot, "node_modules/tailwindcss"),
     },
