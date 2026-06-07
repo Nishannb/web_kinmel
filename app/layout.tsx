@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   },
   description:
     "Shoppable Instagram live and recorded video — product overlays, comment buy codes, and web checkout for Nepal.",
+  other: {
+    "facebook-domain-verification": "28jcv1v97tuet1o29sj0jzplvuah84",
+  },
 };
 
 /**

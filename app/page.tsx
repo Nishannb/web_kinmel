@@ -34,6 +34,12 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
           <KinmelBrandLink size="md" />
           <nav className="flex items-center gap-2 sm:gap-3">
+            <a
+              href="#contact"
+              className="rounded-full px-4 py-2 text-sm font-semibold text-violet-900 transition hover:bg-violet-100/80"
+            >
+              Contact
+            </a>
             {isReady && user ? (
               <Link
                 href="/live-selling"
@@ -231,8 +237,34 @@ export default function HomePage() {
           </div>
         </section>
 
-        <footer className="border-t border-zinc-200/80 pt-8 text-center text-sm text-zinc-500">
-          <p>Kinmel — Instagram overlays, comment-to-buy codes, live studio on iOS.</p>
+        <footer
+          id="contact"
+          className="scroll-mt-24 border-t border-zinc-200/80 pt-10 pb-4 text-sm text-zinc-600"
+        >
+          <div className="mx-auto max-w-2xl space-y-6 text-center">
+            <p className="text-zinc-500">
+              Kinmel — Instagram overlays, comment-to-buy codes, live studio on iOS.
+            </p>
+            <div className="space-y-1">
+              <p className="font-medium text-zinc-800">
+                Kinmel is developed by Naman Technologies Private Limited
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-widest text-violet-600">
+                Location &amp; Contact
+              </p>
+              <p>Ward No. 17, Balodaya Marg, Pokhara 33700</p>
+              <p>
+                <a
+                  href="tel:+9779766044502"
+                  className="font-semibold text-violet-700 transition hover:text-violet-900 hover:underline"
+                >
+                  +977 9766044502
+                </a>
+              </p>
+            </div>
+          </div>
         </footer>
       </main>
     </div>
