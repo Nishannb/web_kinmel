@@ -6,11 +6,15 @@ import { ConsoleScrollPage } from "@/components/ConsoleScrollPage";
 import { formatStorefrontPrice } from "@/lib/formatNpr";
 
 export default function ProductsPage() {
-  const { catalogProducts, createCatalogProduct, deleteCatalogProduct } = useAppState();
+  const { catalogProducts, createCatalogProduct, deleteCatalogProduct, updateCatalogProductStock } =
+    useAppState();
   const [formOpen, setFormOpen] = useState(false);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [buyCode, setBuyCode] = useState("");
+  const [stockQuantity, setStockQuantity] = useState("1");
+  const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({});
+  const [stockBusyId, setStockBusyId] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,6 +37,7 @@ export default function ProductsPage() {
     setName("");
     setPrice("");
     setBuyCode("");
+    setStockQuantity("1");
     setImageFile(null);
     setError(null);
   };
@@ -48,7 +53,12 @@ export default function ProductsPage() {
     const n = name.trim();
     const code = buyCode.trim();
     const p = Number(price);
+    const stock = Number(stockQuantity);
     if (!n || !code || Number.isNaN(p)) return;
+    if (!Number.isFinite(stock) || stock < 0 || !Number.isInteger(stock)) {
+      setError("Available quantity must be a whole number (0 or more).");
+      return;
+    }
     if (/\s/.test(code)) {
       setError("Buy code must be a single word with no spaces.");
       return;
@@ -64,6 +74,7 @@ export default function ProductsPage() {
         name: n,
         price: p,
         buyCode: code,
+        stockQuantity: stock,
         imageFile,
       });
       closeForm(true);
@@ -135,6 +146,57 @@ export default function ProductsPage() {
                     {product.buyCode}
                   </p>
                 ) : null}
+                {product.stockQuantity != null ? (
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {product.stockQuantity <= 0 ? "Sold out" : `${product.stockQuantity} available`}
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={
+                    stockDrafts[product.id] ??
+                    (product.stockQuantity != null ? String(product.stockQuantity) : "")
+                  }
+                  onChange={(event) =>
+                    setStockDrafts((prev) => ({
+                      ...prev,
+                      [product.id]: event.target.value,
+                    }))
+                  }
+                  className="w-16 rounded-md border border-zinc-300 px-2 py-1.5 text-sm outline-none focus:border-zinc-500"
+                  placeholder="Qty"
+                  aria-label={`Available quantity for ${product.name}`}
+                />
+                <button
+                  type="button"
+                  disabled={stockBusyId === product.id}
+                  onClick={() => {
+                    const raw = (stockDrafts[product.id] ?? "").trim();
+                    const parsed =
+                      raw === "" && product.stockQuantity != null
+                        ? product.stockQuantity
+                        : Number(raw);
+                    if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+                      setError("Available quantity must be a whole number (0 or more).");
+                      return;
+                    }
+                    setError(null);
+                    setStockBusyId(product.id);
+                    updateCatalogProductStock(product.id, parsed)
+                      .catch((err) => {
+                        const message = err instanceof Error ? err.message : String(err);
+                        setError(message);
+                      })
+                      .finally(() => setStockBusyId(null));
+                  }}
+                  className="rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+                >
+                  {stockBusyId === product.id ? "…" : "Save"}
+                </button>
               </div>
               <button
                 type="button"
@@ -227,6 +289,19 @@ export default function ProductsPage() {
                 <span className="text-xs text-zinc-500">
                   Shown on overlay — viewers comment this to buy.
                 </span>
+              </label>
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Available quantity</span>
+                <input
+                  value={stockQuantity}
+                  onChange={(event) => setStockQuantity(event.target.value)}
+                  required
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="How many in stock"
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-500"
+                />
               </label>
               <div className="space-y-2">
                 <span className="text-sm font-medium">Photo</span>

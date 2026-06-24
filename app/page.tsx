@@ -260,10 +260,21 @@ export default function HomePage() {
                   href="tel:+9779766044502"
                   className="font-semibold text-violet-700 transition hover:text-violet-900 hover:underline"
                 >
-                  +977 9766044502
+                  +977 9766044502, +977 9769498715
                 </a>
               </p>
             </div>
+            <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-2 text-xs">
+              <Link href="/privacy-policy" className="text-zinc-500 hover:text-violet-700 hover:underline">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="text-zinc-500 hover:text-violet-700 hover:underline">
+                Terms
+              </Link>
+              <Link href="/clearmydata" className="text-zinc-500 hover:text-violet-700 hover:underline">
+                Clear my data
+              </Link>
+            </nav>
           </div>
         </footer>
       </main>

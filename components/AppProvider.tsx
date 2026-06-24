@@ -29,6 +29,7 @@ type CreateProductInput = {
   name: string;
   price: number;
   buyCode: string;
+  stockQuantity: number;
   /** Required; uploaded to R2 before insert. */
   imageFile: File;
   productUrl?: string;
@@ -50,15 +51,17 @@ type AppContextValue = {
   getEventById: (eventId: string) => LiveEvent | undefined;
   createCatalogProduct: (input: CreateProductInput) => Promise<string>;
   deleteCatalogProduct: (productId: string) => Promise<void>;
+  updateCatalogProductStock: (productId: string, stockQuantity: number) => Promise<void>;
   addProductToEvent: (
     eventId: string,
     input: CreateProductInput & { buyCode: string }
-  ) => Promise<void>;
+  ) => Promise<string>;
   addExistingProductToEvent: (
     eventId: string,
     productId: string,
-    buyCode: string
+    buyCode?: string
   ) => Promise<void>;
+  ensureProductOnEvent: (eventId: string, productId: string) => Promise<void>;
   updateEventProductDiscountPercent: (
     eventId: string,
     productId: string,
@@ -127,7 +130,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .order("created_at", { ascending: false }),
       supabase
         .from("products")
-        .select("id,name,price,currency,image_url,product_url,sku")
+        .select("id,name,price,currency,image_url,product_url,sku,updated_at,stock_quantity")
         .eq("business_id", nextBusinessId)
         .eq("is_active", true)
         .order("updated_at", { ascending: false }),
@@ -150,6 +153,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       imageUrl: row.image_url ?? undefined,
       productUrl: row.product_url ?? undefined,
       buyCode: row.sku ? String(row.sku) : undefined,
+      stockQuantity:
+        row.stock_quantity == null ? null : Number(row.stock_quantity ?? 0),
+      catalogUpdatedAt: row.updated_at ? String(row.updated_at) : undefined,
     }));
     setCatalogProducts(nextCatalogProducts);
 
@@ -162,10 +168,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const lineupRes = await supabase
       .from("live_session_products")
       .select(
-        "live_session_id,promo_price,live_call_number,products(id,name,price,currency,image_url,product_url)"
+        "live_session_id,promo_price,live_call_number,created_at,products(id,name,price,currency,image_url,product_url,sku)"
       )
       .in("live_session_id", sessionIds)
-      .order("display_order", { ascending: true });
+      .order("created_at", { ascending: false });
     if (lineupRes.error) throw lineupRes.error;
 
     const productsByEvent = new Map<string, Product[]>();
@@ -189,7 +195,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         productUrl: productObj.product_url ?? undefined,
         discountedPrice:
           row.promo_price == null ? null : Number(row.promo_price ?? 0),
-        buyCode: String(row.live_call_number ?? ""),
+        buyCode: String(row.live_call_number ?? productObj.sku ?? ""),
+        sessionAddedAt: row.created_at ? String(row.created_at) : undefined,
       });
       productsByEvent.set(eventId, current);
     }
@@ -386,7 +393,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addProductToEvent = useCallback(
     async (eventId: string, input: CreateProductInput & { buyCode: string }) => {
-      if (!isReady) return;
+      if (!isReady) return "";
       if (!businessId) {
         throw new Error("No business found for this user.");
       }
@@ -403,6 +410,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!input.imageFile || input.imageFile.size === 0) {
         throw new Error("A product image is required.");
       }
+      if (!Number.isFinite(input.stockQuantity) || input.stockQuantity < 0) {
+        throw new Error("Available quantity must be 0 or more.");
+      }
       const imageUrl = await uploadProductImageToR2(
         supabase,
         businessId,
@@ -418,6 +428,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           image_url: imageUrl,
           product_url: null,
           sku: callNumber,
+          stock_quantity: Math.floor(input.stockQuantity),
         })
         .select("id")
         .single();
@@ -450,6 +461,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       await refreshData();
+      return productId;
     },
     [buildDefaultProductUrl, businessId, events, isReady, refreshData]
   );
@@ -470,6 +482,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!input.imageFile || input.imageFile.size === 0) {
         throw new Error("A product image is required.");
       }
+      if (!Number.isFinite(input.stockQuantity) || input.stockQuantity < 0) {
+        throw new Error("Available quantity must be 0 or more.");
+      }
       const imageUrl = await uploadProductImageToR2(
         supabase,
         businessId,
@@ -485,6 +500,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           image_url: imageUrl,
           product_url: null,
           sku: buyCode,
+          stock_quantity: Math.floor(input.stockQuantity),
         })
         .select("id")
         .single();
@@ -511,6 +527,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [buildDefaultProductUrl, businessId, isReady, refreshData]
   );
 
+  const updateCatalogProductStock = useCallback(
+    async (productId: string, stockQuantity: number) => {
+      if (!isReady) return;
+      if (!Number.isFinite(stockQuantity) || stockQuantity < 0) {
+        throw new Error("Available quantity must be 0 or more.");
+      }
+      const { error } = await supabase
+        .from("products")
+        .update({ stock_quantity: Math.floor(stockQuantity) })
+        .eq("id", productId);
+      if (error) {
+        throw error;
+      }
+      await refreshData();
+    },
+    [isReady, refreshData]
+  );
+
   const deleteCatalogProduct = useCallback(
     async (productId: string) => {
       if (!isReady) return;
@@ -526,26 +560,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [isReady, refreshData]
   );
 
-  const addExistingProductToEvent = useCallback(
-    async (eventId: string, productId: string, buyCode: string) => {
+  const ensureProductOnEvent = useCallback(
+    async (eventId: string, productId: string) => {
       if (!isReady) return;
       const targetEvent = events.find((event) => event.id === eventId);
       if (!targetEvent) {
         throw new Error("Event not found.");
       }
-      const alreadyInEvent = targetEvent.products.some((product) => product.id === productId);
-      if (alreadyInEvent) {
-        throw new Error("Product is already in this event.");
+      if (targetEvent.products.some((product) => product.id === productId)) {
+        return;
       }
-      const nextDisplayOrder = targetEvent.products.length;
-      const callNumber = buyCode.trim();
+      const catalogProduct = catalogProducts.find((product) => product.id === productId);
+      if (!catalogProduct) {
+        throw new Error("Product not found in catalog.");
+      }
+      const callNumber = catalogProduct.buyCode?.trim() ?? "";
       if (!callNumber) {
-        throw new Error("Buy code is required.");
+        throw new Error("This product needs a buy code in your catalog first.");
       }
       const lineupRes = await supabase.from("live_session_products").insert({
         live_session_id: eventId,
         product_id: productId,
-        display_order: nextDisplayOrder,
+        display_order: targetEvent.products.length,
         live_call_number: callNumber,
       });
       if (lineupRes.error) {
@@ -553,25 +589,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       await refreshData();
     },
-    [events, isReady, refreshData]
+    [catalogProducts, events, isReady, refreshData]
   );
 
-  const updateEventProductDiscountPercent = useCallback(
-    async (eventId: string, productId: string, discountPercent: number) => {
+  const addExistingProductToEvent = useCallback(
+    async (eventId: string, productId: string, buyCode?: string) => {
       if (!isReady) return;
       const targetEvent = events.find((event) => event.id === eventId);
       if (!targetEvent) {
         throw new Error("Event not found.");
       }
-      const targetProduct = targetEvent.products.find((product) => product.id === productId);
-      if (!targetProduct) {
-        throw new Error("Product is not attached to this event.");
+      if (targetEvent.products.some((product) => product.id === productId)) {
+        throw new Error("Product is already in this event.");
       }
+      const catalogProduct = catalogProducts.find((product) => product.id === productId);
+      const callNumber = (buyCode?.trim() || catalogProduct?.buyCode?.trim() || "");
+      if (!callNumber) {
+        throw new Error("Buy code is required.");
+      }
+      const lineupRes = await supabase.from("live_session_products").insert({
+        live_session_id: eventId,
+        product_id: productId,
+        display_order: targetEvent.products.length,
+        live_call_number: callNumber,
+      });
+      if (lineupRes.error) {
+        throw lineupRes.error;
+      }
+      await refreshData();
+    },
+    [catalogProducts, events, isReady, refreshData]
+  );
+
+  const updateEventProductDiscountPercent = useCallback(
+    async (eventId: string, productId: string, discountPercent: number) => {
+      if (!isReady) return;
+      const catalogProduct = catalogProducts.find((product) => product.id === productId);
+      if (!catalogProduct) {
+        throw new Error("Product not found in catalog.");
+      }
+      await ensureProductOnEvent(eventId, productId);
       const clamped = Math.max(0, Math.min(99, discountPercent));
       const promoPrice =
         clamped <= 0
           ? null
-          : Number((targetProduct.price * (1 - clamped / 100)).toFixed(2));
+          : Number((catalogProduct.price * (1 - clamped / 100)).toFixed(2));
       const { error } = await supabase
         .from("live_session_products")
         .update({ promo_price: promoPrice })
@@ -582,7 +644,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       await refreshData();
     },
-    [events, isReady, refreshData]
+    [catalogProducts, ensureProductOnEvent, isReady, refreshData]
   );
 
   const updateEventProductBuyCode = useCallback(
@@ -591,6 +653,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const normalized = buyCode.trim();
       if (!normalized) {
         throw new Error("Buy code is required.");
+      }
+      const targetEvent = events.find((event) => event.id === eventId);
+      if (!targetEvent) {
+        throw new Error("Event not found.");
+      }
+      if (!targetEvent.products.some((product) => product.id === productId)) {
+        const insertRes = await supabase.from("live_session_products").insert({
+          live_session_id: eventId,
+          product_id: productId,
+          display_order: targetEvent.products.length,
+          live_call_number: normalized,
+        });
+        if (insertRes.error) {
+          throw insertRes.error;
+        }
+        await refreshData();
+        return;
       }
       const { error } = await supabase
         .from("live_session_products")
@@ -602,7 +681,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       await refreshData();
     },
-    [isReady, refreshData]
+    [events, isReady, refreshData]
   );
 
   const updateOverlaySettings = useCallback(
@@ -639,8 +718,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getEventById,
       createCatalogProduct,
       deleteCatalogProduct,
+      updateCatalogProductStock,
       addProductToEvent,
       addExistingProductToEvent,
+      ensureProductOnEvent,
       updateEventProductDiscountPercent,
       updateEventProductBuyCode,
       updateOverlaySettings,
@@ -657,7 +738,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getEventById,
       createCatalogProduct,
       deleteCatalogProduct,
+      updateCatalogProductStock,
       addExistingProductToEvent,
+      ensureProductOnEvent,
       updateEventProductDiscountPercent,
       updateEventProductBuyCode,
       instagramAccounts,

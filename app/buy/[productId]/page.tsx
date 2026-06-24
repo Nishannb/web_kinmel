@@ -136,6 +136,8 @@ export default function PublicBuyPage() {
     image_url: string;
     product_url: string;
     business_id?: string;
+    stock_quantity?: number | null;
+    sold_out?: boolean;
     seller?: {
       business_name?: string;
       instagram_username?: string;
@@ -185,6 +187,22 @@ export default function PublicBuyPage() {
       setPaymentMethod("esewa");
     }
   }, [product, paymentMethod]);
+
+  useEffect(() => {
+    if (!product) return;
+    const tracked =
+      product.stock_quantity != null
+        ? Math.max(0, Math.floor(product.stock_quantity))
+        : null;
+    const soldOut = product.sold_out === true || tracked === 0;
+    if (soldOut) {
+      setQuantity(1);
+      return;
+    }
+    if (tracked != null && quantity > tracked) {
+      setQuantity(Math.max(1, tracked));
+    }
+  }, [product, quantity]);
 
   useEffect(() => {
     if (!esewaPost || !formRef.current) return;
@@ -310,9 +328,15 @@ export default function PublicBuyPage() {
   const sellerLine = formatSellerLine(product.seller);
   const isNpr = isNepalRupeesCurrency(product.currency);
   const priceCcy = product.currency;
+  const trackedStock =
+    product.stock_quantity != null ? Math.max(0, Math.floor(product.stock_quantity)) : null;
+  const isSoldOut = product.sold_out === true || trackedStock === 0;
+  const maxPurchasable =
+    trackedStock == null ? 99 : Math.min(99, Math.max(0, trackedStock));
 
   const setQty = (n: number) => {
-    const clamped = Math.min(99, Math.max(1, Math.floor(n)));
+    const upper = isSoldOut ? 1 : maxPurchasable;
+    const clamped = Math.min(upper, Math.max(1, Math.floor(n)));
     setQuantity(clamped);
   };
 
@@ -338,8 +362,8 @@ export default function PublicBuyPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
           <KinmelBrandLink size="sm" tone="neutral" />
           <div className="flex shrink-0 items-center gap-2 text-sm font-semibold text-zinc-800">
+            <span>Secure Checkout</span>
             <IconShield />
-            <span className="hidden sm:inline">Secure checkout</span>
           </div>
         </div>
       </header>
@@ -359,12 +383,20 @@ export default function PublicBuyPage() {
 
           <div className="space-y-3">
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900 md:text-3xl">{product.name}</h1>
+            {isSoldOut ? (
+              <p className="text-lg font-bold text-red-600">Already Sold out!</p>
+            ) : trackedStock != null ? (
+              <p className="text-sm font-medium text-emerald-700">
+                {trackedStock} {trackedStock === 1 ? "piece" : "pieces"} available
+              </p>
+            ) : null}
             {desc ? <p className="text-sm leading-relaxed text-zinc-500 md:text-base">{desc}</p> : null}
             <div className="flex flex-wrap items-center gap-4">
               <p className={`text-2xl font-bold md:text-3xl ${accent.text}`}>
                 {formatStorefrontPrice(unitPrice, priceCcy)}
                 <span className="ml-1 text-sm font-normal text-zinc-500">each</span>
               </p>
+              {!isSoldOut ? (
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-zinc-700">Qty</span>
                 <div className="flex items-center rounded-xl border border-zinc-200 bg-white">
@@ -382,13 +414,14 @@ export default function PublicBuyPage() {
                     type="button"
                     aria-label="Increase quantity"
                     className="px-3 py-2 text-lg font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
-                    disabled={quantity >= 99}
+                    disabled={quantity >= maxPurchasable}
                     onClick={() => setQty(quantity + 1)}
                   >
                     +
                   </button>
                 </div>
               </div>
+              ) : null}
             </div>
             <p className="text-sm text-zinc-600">
               <span className="font-medium text-zinc-700">Seller: </span>
@@ -407,6 +440,14 @@ export default function PublicBuyPage() {
         </div>
 
         <div className="overflow-hidden">
+          {isSoldOut ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-10 text-center">
+              <p className="text-xl font-bold text-red-700">Already Sold out!</p>
+              <p className="mt-2 text-sm text-red-600">
+                This item is no longer available. Check back later or contact the seller.
+              </p>
+            </div>
+          ) : (
           <div
             className={[
               "flex w-[200%] transition-transform duration-300 ease-out motion-reduce:transition-none",
@@ -654,6 +695,7 @@ export default function PublicBuyPage() {
               </p>
             </section>
           </div>
+          )}
         </div>
       </main>
 

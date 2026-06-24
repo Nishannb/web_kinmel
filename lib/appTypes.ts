@@ -11,6 +11,12 @@ export type Product = {
   productUrl?: string;
   discountedPrice?: number | null;
   buyCode?: string;
+  /** Available units; null = unlimited (legacy). */
+  stockQuantity?: number | null;
+  /** When this product was added to a live session lineup (newest first in UI). */
+  sessionAddedAt?: string;
+  /** Catalog row `updated_at` for sorting products not yet in this show. */
+  catalogUpdatedAt?: string;
 };
 
 export type OverlaySettings = {

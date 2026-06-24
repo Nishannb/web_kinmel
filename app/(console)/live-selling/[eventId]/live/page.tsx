@@ -1,10 +1,19 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAppState } from "@/components/AppProvider";
+import { CreateLiveProductModal } from "@/components/live/CreateLiveProductModal";
+import {
+  CalendarIcon,
+  ChatBubbleIcon,
+  FilterIcon,
+  KeyIcon,
+  SearchIcon,
+} from "@/components/live/LiveWorkspaceIcons";
 import { useOverlaySync } from "@/hooks/useOverlaySync";
+import type { Product } from "@/lib/appTypes";
 import { formatStorefrontPrice } from "@/lib/formatNpr";
 import { getBackendWsBase } from "@/lib/publicConfig";
 import { supabase } from "@/lib/supabase";
@@ -16,6 +25,44 @@ type LiveCommentItem = {
   author: string;
   createdAt: string;
 };
+
+type LiveProductRow = Product & {
+  inSession: boolean;
+  effectiveBuyCode: string;
+};
+
+type SortMode = "session" | "name" | "price-asc" | "price-desc";
+
+const SORT_LABELS: Record<SortMode, string> = {
+  session: "Recently added",
+  name: "Name A–Z",
+  "price-asc": "Price low–high",
+  "price-desc": "Price high–low",
+};
+
+function productRecencyMs(row: LiveProductRow): number {
+  if (row.sessionAddedAt) {
+    return new Date(row.sessionAddedAt).getTime();
+  }
+  if (row.catalogUpdatedAt) {
+    return new Date(row.catalogUpdatedAt).getTime();
+  }
+  return 0;
+}
+
+function sortLiveProductRows(rows: LiveProductRow[], mode: SortMode): LiveProductRow[] {
+  const sorted = [...rows];
+  if (mode === "name") {
+    return sorted.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  if (mode === "price-asc") {
+    return sorted.sort((a, b) => a.price - b.price);
+  }
+  if (mode === "price-desc") {
+    return sorted.sort((a, b) => b.price - a.price);
+  }
+  return sorted.sort((a, b) => productRecencyMs(b) - productRecencyMs(a));
+}
 
 /** WebSocket `comment.insert` payload shape from the relay server. */
 type WsCommentInsertPayload = {
@@ -31,51 +78,74 @@ export default function LiveWorkspacePage() {
   const {
     getEventById,
     addProductToEvent,
-    addExistingProductToEvent,
+    ensureProductOnEvent,
     updateEventProductDiscountPercent,
     updateEventProductBuyCode,
+    updateCatalogProductStock,
     catalogProducts,
   } = useAppState();
   const event = getEventById(eventId);
   const overlaySync = useOverlaySync(event?.id ?? null);
 
-  const [newName, setNewName] = useState("");
-  const [newPrice, setNewPrice] = useState("");
-  const [newProductUrl, setNewProductUrl] = useState("");
-  const [newImageFile, setNewImageFile] = useState<File | null>(null);
-  const [newImagePreviewUrl, setNewImagePreviewUrl] = useState<string | null>(null);
-  const [addError, setAddError] = useState<string | null>(null);
-  const [addingProduct, setAddingProduct] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creatingProduct, setCreatingProduct] = useState(false);
 
-  const [search, setSearch] = useState("");
-  const [attachError, setAttachError] = useState<string | null>(null);
-  const [attachingId, setAttachingId] = useState<string | null>(null);
-  const [attachBuyCode, setAttachBuyCode] = useState("");
-  const [newBuyCode, setNewBuyCode] = useState("");
+  const [productSearch, setProductSearch] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("session");
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [overlayBusyId, setOverlayBusyId] = useState<string | null>(null);
+
   const [discountDrafts, setDiscountDrafts] = useState<Record<string, string>>({});
   const [discountBusyId, setDiscountBusyId] = useState<string | null>(null);
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [buyCodeDrafts, setBuyCodeDrafts] = useState<Record<string, string>>({});
+  const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({});
+  const [stockBusyId, setStockBusyId] = useState<string | null>(null);
   const [buyCodeBusyId, setBuyCodeBusyId] = useState<string | null>(null);
   const [buyCodeError, setBuyCodeError] = useState<string | null>(null);
-  const [sessionProductSearch, setSessionProductSearch] = useState("");
 
   const [comments, setComments] = useState<LiveCommentItem[]>([]);
 
-  const addableProducts = useMemo(() => {
+  const liveProductRows = useMemo(() => {
     if (!event) return [];
-    const eventProductIds = new Set(event.products.map((p) => p.id));
-    const q = search.trim().toLowerCase();
-    return catalogProducts
-      .filter((p) => !eventProductIds.has(p.id))
-      .filter((p) => (q ? p.name.toLowerCase().includes(q) : true));
-  }, [catalogProducts, event, search]);
-  const filteredSessionProducts = useMemo(() => {
-    if (!event) return [];
-    const q = sessionProductSearch.trim().toLowerCase();
-    if (!q) return event.products;
-    return event.products.filter((p) => p.name.toLowerCase().includes(q));
-  }, [event, sessionProductSearch]);
+    const sessionById = new Map(event.products.map((product) => [product.id, product]));
+    const rows: LiveProductRow[] = catalogProducts.map((catalog) => {
+      const session = sessionById.get(catalog.id);
+      const effectiveBuyCode = session?.buyCode?.trim() || catalog.buyCode?.trim() || "";
+      return {
+        ...catalog,
+        discountedPrice: session?.discountedPrice ?? null,
+        buyCode: session?.buyCode ?? catalog.buyCode,
+        sessionAddedAt: session?.sessionAddedAt,
+        catalogUpdatedAt: catalog.catalogUpdatedAt,
+        inSession: Boolean(session),
+        effectiveBuyCode,
+      };
+    });
+    const q = productSearch.trim().toLowerCase();
+    const filtered = q
+      ? rows.filter(
+          (row) =>
+            row.name.toLowerCase().includes(q) ||
+            row.effectiveBuyCode.toLowerCase().includes(q)
+        )
+      : rows;
+    return sortLiveProductRows(filtered, sortMode);
+  }, [catalogProducts, event, productSearch, sortMode]);
+
+  useEffect(() => {
+    if (!sortMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!sortMenuRef.current?.contains(event.target as Node)) {
+        setSortMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [sortMenuOpen]);
 
   useEffect(() => {
     if (!event?.id) return;
@@ -183,73 +253,61 @@ export default function LiveWorkspacePage() {
     };
   }, [event?.id]);
 
-  useEffect(() => {
-    if (!newImageFile) {
-      setNewImagePreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(newImageFile);
-    setNewImagePreviewUrl(url);
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [newImageFile]);
-
-  const onAddProduct = async (eventForm: FormEvent<HTMLFormElement>) => {
-    eventForm.preventDefault();
+  const onCreateProduct = async (input: {
+    name: string;
+    price: number;
+    buyCode: string;
+    stockQuantity: number;
+    imageFile: File;
+  }) => {
     if (!event) return;
-    const price = Number(newPrice);
-    if (!newName.trim() || Number.isNaN(price)) return;
-    const imageFile = newImageFile;
-    if (!imageFile || imageFile.size === 0) {
-      setAddError("Please choose a product image (JPEG, PNG, or WebP).");
-      return;
-    }
-    setAddError(null);
-    setAddingProduct(true);
+    setCreateError(null);
+    setCreatingProduct(true);
     try {
-      await addProductToEvent(event.id, {
-        name: newName.trim(),
-        price,
-        productUrl: newProductUrl.trim() || undefined,
-        imageFile,
-        buyCode: newBuyCode.trim(),
+      const productId = await addProductToEvent(event.id, input);
+      overlaySync.setSettings({
+        ...overlaySync.settings,
+        visibleProductIds: [productId],
       });
-      setNewName("");
-      setNewPrice("");
-      setNewBuyCode("");
-      setNewProductUrl("");
-      setNewImageFile(null);
+      overlaySync.forceSync();
+      setCreateModalOpen(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setAddError(message);
+      setCreateError(message);
     } finally {
-      setAddingProduct(false);
+      setCreatingProduct(false);
     }
   };
 
-  const onAttachExisting = async (productId: string) => {
+  const selectOverlayProduct = async (productId: string) => {
     if (!event) return;
-    const buyCode = attachBuyCode.trim();
-    if (!buyCode) {
-      setAttachError("Buy code is required.");
-      return;
-    }
-    setAttachError(null);
-    setAttachingId(productId);
+    setListError(null);
+    setOverlayBusyId(productId);
     try {
-      await addExistingProductToEvent(event.id, productId, buyCode);
-      setAttachBuyCode("");
+      await ensureProductOnEvent(event.id, productId);
+      overlaySync.setSettings({
+        ...overlaySync.settings,
+        visibleProductIds: [productId],
+      });
+      overlaySync.forceSync();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setAttachError(message);
+      setListError(message);
     } finally {
-      setAttachingId(null);
+      setOverlayBusyId(null);
     }
   };
-  const saveBuyCode = async (productId: string) => {
+
+  const clearOverlayProduct = () => {
+    overlaySync.setSettings({
+      ...overlaySync.settings,
+      visibleProductIds: [],
+    });
+  };
+
+  const saveBuyCode = async (productId: string, fallbackBuyCode: string) => {
     if (!event) return;
-    const buyCode = (buyCodeDrafts[productId] ?? "").trim();
+    const buyCode = (buyCodeDrafts[productId] ?? fallbackBuyCode).trim();
     if (!buyCode) {
       setBuyCodeError("Buy code is required.");
       return;
@@ -265,25 +323,6 @@ export default function LiveWorkspacePage() {
     } finally {
       setBuyCodeBusyId(null);
     }
-  };
-
-  const selectOverlayProduct = (productId: string) => {
-    overlaySync.setSettings({
-      ...overlaySync.settings,
-      visibleProductIds: [productId],
-    });
-  };
-  const clearOverlayProduct = () => {
-    overlaySync.setSettings({
-      ...overlaySync.settings,
-      visibleProductIds: [],
-    });
-  };
-  const onOverlayTextChange = (value: string) => {
-    overlaySync.setSettings({
-      ...overlaySync.settings,
-      overlayText: value,
-    });
   };
 
   const saveDiscountPercent = async (productId: string) => {
@@ -307,359 +346,438 @@ export default function LiveWorkspacePage() {
     }
   };
 
+  const saveStock = async (productId: string, fallbackStock: number | null | undefined) => {
+    const raw = (stockDrafts[productId] ?? "").trim();
+    const parsed =
+      raw === "" && fallbackStock != null
+        ? fallbackStock
+        : raw === ""
+          ? NaN
+          : Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+      setListError("Available quantity must be a whole number (0 or more).");
+      return;
+    }
+    setStockBusyId(productId);
+    setListError(null);
+    try {
+      await updateCatalogProductStock(productId, parsed);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setListError(message);
+    } finally {
+      setStockBusyId(null);
+    }
+  };
+
+  const saveRow = async (
+    productId: string,
+    fallbackBuyCode: string,
+    fallbackStock: number | null | undefined
+  ) => {
+    await saveDiscountPercent(productId);
+    await saveBuyCode(productId, fallbackBuyCode);
+    await saveStock(productId, fallbackStock);
+  };
+
   const selectedOverlayProductId = overlaySync.settings.visibleProductIds[0] ?? null;
 
+  const statusLabel =
+    event?.status === "live"
+      ? "live"
+      : event?.status === "scheduled"
+        ? "scheduled"
+        : event?.status ?? "";
+
+  const cardClass = "rounded-2xl border border-violet-100/90 bg-white shadow-sm";
+  const violetBtn =
+    "rounded-xl bg-violet-100 px-4 py-1.5 text-xs font-semibold text-violet-800 transition hover:bg-violet-200 disabled:opacity-60";
+  const violetOutlineBtn =
+    "inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2 text-sm font-medium text-violet-800 transition hover:bg-violet-50";
+
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-1 flex-col">
       {!event ? (
-        <section className="rounded-xl border border-zinc-200 bg-white p-6">
+        <section className={`${cardClass} p-6`}>
           <h1 className="text-xl font-semibold">Event not found</h1>
-          <Link href="/live-selling" className="mt-4 inline-block text-sm text-zinc-700 underline">
+          <Link href="/live-selling" className="mt-4 inline-block text-sm text-violet-700 underline">
             Back to Live Selling
           </Link>
         </section>
       ) : (
-        <section className="grid gap-6 lg:grid-cols-[1fr_340px]">
-          <div className="space-y-6">
-            <div className="rounded-xl border border-zinc-200 bg-white p-6">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-semibold">{event.name}</h1>
-                  <p className="mt-1 text-sm text-zinc-600">
-                    {event.status === "live" ? (
-                      <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">
-                        Show is Ongoing
-                      </span>
-                    ) : (
-                      `Status: ${event.status}`
-                    )}
-                  </p>
+        <section className="grid h-full min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_min(22rem,28vw)] xl:grid-cols-[minmax(0,1fr)_min(26rem,32vw)] xl:gap-4">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 max-lg:min-h-[32rem]">
+            {/* Event header card — matches mockup top strip */}
+            <div className={`shrink-0 ${cardClass} px-4 py-4 sm:px-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-700">
+                    <CalendarIcon size="sm" />
+                  </div>
+                  <div className="min-w-0">
+                    <h1 className="truncate text-base font-bold text-zinc-900 sm:text-lg">
+                      {event.name}
+                    </h1>
+                    <p className="text-xs text-zinc-500 sm:text-sm">
+                      Status:{" "}
+                      {event.status === "live" ? (
+                        <span className="font-semibold text-emerald-600">live</span>
+                      ) : (
+                        <span className="font-semibold text-violet-700">{statusLabel}</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <Link
-                  href={`/live-selling/${event.id}/stream`}
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100"
-                >
-                  Edit Stream Keys
+                <Link href={`/live-selling/${event.id}/stream`} className={violetOutlineBtn}>
+                  <KeyIcon />
+                  <span className="hidden sm:inline">Edit Stream Keys</span>
+                  <span className="sm:hidden">Keys</span>
                 </Link>
-              </div>
-              <div className="mt-4">
-                <label className="block space-y-1">
-                  <span className="text-sm font-medium">Overlay Text (shown on stream)</span>
-                  <input
-                    value={overlaySync.settings.overlayText}
-                    onChange={(eventInput) => onOverlayTextChange(eventInput.target.value)}
-                    placeholder="Type banner text..."
-                    className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-                  />
-                </label>
               </div>
             </div>
 
-            <div className="rounded-xl border border-zinc-200 bg-white p-6">
-              <h2 className="text-lg font-semibold">Products for this live session</h2>
-              <p className="mt-1 text-xs text-zinc-500">
-                Select exactly one product to display on live; selecting a product deselects others.
-              </p>
-              <input
-                value={sessionProductSearch}
-                onChange={(eventItem) => setSessionProductSearch(eventItem.target.value)}
-                placeholder="Search products in this session..."
-                className="mt-3 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-              />
-              <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={clearOverlayProduct}
-                  className="rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100"
-                >
-                  Clear displayed product
-                </button>
+            {/* Products card */}
+            <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${cardClass}`}>
+              <div className="shrink-0 px-4 py-4 sm:px-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-lg font-bold text-zinc-900">Products</h2>
+                    <p className="mt-1 text-xs leading-relaxed text-zinc-500 sm:text-sm">
+                      Select a product to show on the live stream overlay. Buy code defaults from
+                      your catalog; override per show if needed.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreateError(null);
+                      setCreateModalOpen(true);
+                    }}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-600 text-lg font-medium leading-none text-white shadow-sm transition hover:bg-violet-700"
+                    aria-label="Create new product"
+                    title="Create new product"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="relative min-w-0 flex-1">
+                    <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                    <input
+                      value={productSearch}
+                      onChange={(eventItem) => setProductSearch(eventItem.target.value)}
+                      placeholder="Search by name or buy code..."
+                      className="w-full rounded-xl border border-violet-100 bg-violet-50/30 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-violet-300 focus:bg-white focus:ring-2 focus:ring-violet-100"
+                    />
+                  </div>
+                  <div className="relative shrink-0" ref={sortMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setSortMenuOpen((open) => !open)}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-violet-100 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-violet-50 sm:w-auto"
+                    >
+                      <FilterIcon className="text-violet-600" />
+                      Filter / Sort
+                    </button>
+                    {sortMenuOpen ? (
+                      <div className="absolute right-0 z-20 mt-1 min-w-[11rem] rounded-xl border border-violet-100 bg-white py-1 shadow-lg">
+                        {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => {
+                              setSortMode(mode);
+                              setSortMenuOpen(false);
+                            }}
+                            className={`block w-full px-4 py-2 text-left text-sm transition hover:bg-violet-50 ${
+                              sortMode === mode
+                                ? "font-semibold text-violet-800"
+                                : "text-zinc-700"
+                            }`}
+                          >
+                            {SORT_LABELS[mode]}
+                          </button>
+                        ))}
+                        <div className="my-1 border-t border-violet-50" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearOverlayProduct();
+                            setSortMenuOpen(false);
+                          }}
+                          className="block w-full px-4 py-2 text-left text-sm text-zinc-600 transition hover:bg-violet-50"
+                        >
+                          Clear displayed product
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               </div>
-              <div className="mt-4 overflow-hidden rounded-md border border-zinc-200">
+
+              <div className="min-h-0 flex-1 overflow-auto border-t border-violet-50">
                 <table className="w-full text-sm">
-                  <thead className="bg-zinc-50 text-left text-zinc-500">
+                  <thead className="sticky top-0 z-10 bg-violet-50 text-left text-xs font-semibold uppercase tracking-wide text-violet-800">
                     <tr>
-                      <th className="w-20 px-3 py-2">Display</th>
-                      <th className="px-3 py-2">Product Name</th>
-                      <th className="px-3 py-2">Price</th>
-                      <th className="px-3 py-2">Discount %</th>
-                      <th className="px-3 py-2">Buy Code</th>
+                      <th className="w-16 px-4 py-3">Display</th>
+                      <th className="px-4 py-3">Product Name</th>
+                      <th className="px-4 py-3">Price</th>
+                      <th className="px-4 py-3">Discount %</th>
+                      <th className="px-4 py-3">Available</th>
+                      <th className="px-4 py-3">Buy Code</th>
+                      <th className="w-24 px-4 py-3" />
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredSessionProducts.length === 0 ? (
+                    {liveProductRows.length === 0 ? (
                       <tr>
-                        <td className="px-3 py-4 text-zinc-500" colSpan={5}>
-                          {event.products.length === 0
-                            ? "No products in this event yet."
+                        <td className="px-4 py-4 text-center text-zinc-500" colSpan={7}>
+                          {catalogProducts.length === 0
+                            ? "No products in your catalog yet. Tap + to create one."
                             : "No products match your search."}
                         </td>
                       </tr>
                     ) : (
-                      filteredSessionProducts.map((product) => (
-                        <tr key={product.id} className="border-t border-zinc-100">
-                          <td className="px-3 py-2">
-                            <input
-                              type="radio"
-                              name="overlayProduct"
-                              checked={overlaySync.settings.visibleProductIds[0] === product.id}
-                              onChange={() => selectOverlayProduct(product.id)}
-                            />
-                          </td>
-                          <td className="px-3 py-2">{product.name}</td>
-                          <td className="px-3 py-2">
-                            {product.discountedPrice != null &&
-                            product.discountedPrice >= 0 &&
-                            product.discountedPrice < product.price ? (
-                              <span className="inline-flex items-center gap-2">
-                                <span className="text-red-600 line-through">
-                                  {formatStorefrontPrice(product.price, product.currency)}
+                      liveProductRows.map((product) => {
+                        const isSelected = selectedOverlayProductId === product.id;
+                        const isBusy =
+                          overlayBusyId === product.id ||
+                          discountBusyId === product.id ||
+                          buyCodeBusyId === product.id ||
+                          stockBusyId === product.id;
+                        return (
+                          <tr
+                            key={product.id}
+                            className={`border-t border-violet-50 transition ${
+                              isSelected ? "bg-violet-50/80" : "hover:bg-violet-50/30"
+                            }`}
+                          >
+                            <td className="px-4 py-3 align-middle">
+                              <input
+                                type="radio"
+                                name="overlayProduct"
+                                checked={isSelected}
+                                disabled={isBusy}
+                                onChange={() => {
+                                  void selectOverlayProduct(product.id);
+                                }}
+                                className="h-4 w-4 accent-violet-600"
+                              />
+                            </td>
+                            <td className="px-4 py-3 align-middle">
+                              <div className="flex items-center gap-3">
+                                {product.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={product.imageUrl}
+                                    alt=""
+                                    className="h-11 w-11 shrink-0 rounded-xl border border-violet-100 object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-violet-100 bg-violet-50 text-[10px] font-medium text-violet-400">
+                                    —
+                                  </div>
+                                )}
+                                <p className="font-medium text-zinc-900">{product.name}</p>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 align-middle font-medium text-zinc-800">
+                              {product.discountedPrice != null &&
+                              product.discountedPrice >= 0 &&
+                              product.discountedPrice < product.price ? (
+                                <span className="inline-flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+                                  <span className="text-xs text-zinc-400 line-through">
+                                    {formatStorefrontPrice(product.price, product.currency)}
+                                  </span>
+                                  <span>
+                                    {formatStorefrontPrice(
+                                      product.discountedPrice,
+                                      product.currency
+                                    )}
+                                  </span>
                                 </span>
-                                <span className="font-semibold text-zinc-800">
-                                  {formatStorefrontPrice(product.discountedPrice, product.currency)}
+                              ) : (
+                                formatStorefrontPrice(product.price, product.currency)
+                              )}
+                            </td>
+                            <td className="px-4 py-3 align-middle">
+                              <div className="relative w-[4.5rem]">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={99}
+                                  step={1}
+                                  value={
+                                    discountDrafts[product.id] ??
+                                    (product.discountedPrice != null &&
+                                    product.discountedPrice < product.price
+                                      ? String(
+                                          Math.round(
+                                            ((product.price - product.discountedPrice) /
+                                              product.price) *
+                                              100
+                                          )
+                                        )
+                                      : "0")
+                                  }
+                                  onChange={(eventInput) =>
+                                    setDiscountDrafts((prev) => ({
+                                      ...prev,
+                                      [product.id]: eventInput.target.value,
+                                    }))
+                                  }
+                                  className="w-full rounded-lg border border-violet-100 bg-white py-1.5 pl-2 pr-6 text-sm outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                                />
+                                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-zinc-400">
+                                  %
                                 </span>
-                              </span>
-                            ) : (
-                              <span>
-                                {formatStorefrontPrice(product.price, product.currency)}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-2">
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 align-middle">
                               <input
                                 type="number"
                                 min={0}
-                                max={99}
                                 step={1}
                                 value={
-                                  discountDrafts[product.id] ??
-                                  (product.discountedPrice != null &&
-                                  product.discountedPrice < product.price
-                                    ? String(
-                                        Math.round(
-                                          ((product.price - product.discountedPrice) /
-                                            product.price) *
-                                            100
-                                        )
-                                      )
+                                  stockDrafts[product.id] ??
+                                  (product.stockQuantity != null
+                                    ? String(product.stockQuantity)
                                     : "")
                                 }
                                 onChange={(eventInput) =>
-                                  setDiscountDrafts((prev) => ({
+                                  setStockDrafts((prev) => ({
                                     ...prev,
                                     [product.id]: eventInput.target.value,
                                   }))
                                 }
-                                className="w-20 rounded-md border border-zinc-300 px-2 py-1 outline-none focus:border-zinc-500"
-                                placeholder="0"
+                                className="w-20 rounded-lg border border-violet-100 bg-white px-2 py-1.5 text-sm outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                                placeholder="—"
                               />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void saveDiscountPercent(product.id);
-                                }}
-                                disabled={discountBusyId === product.id}
-                                className="rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-60"
-                              >
-                                {discountBusyId === product.id ? "Saving..." : "Save"}
-                              </button>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-2">
+                            </td>
+                            <td className="px-4 py-3 align-middle">
                               <input
-                                value={buyCodeDrafts[product.id] ?? product.buyCode ?? ""}
+                                value={buyCodeDrafts[product.id] ?? product.effectiveBuyCode ?? ""}
                                 onChange={(eventInput) =>
                                   setBuyCodeDrafts((prev) => ({
                                     ...prev,
                                     [product.id]: eventInput.target.value,
                                   }))
                                 }
-                                className="w-24 rounded-md border border-zinc-300 px-2 py-1 outline-none focus:border-zinc-500"
-                                placeholder="e.g. 37"
+                                className="w-full min-w-[6.5rem] max-w-[8rem] rounded-lg border border-violet-100 bg-white px-2 py-1.5 text-sm outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                                placeholder="e.g. RED50"
                               />
+                            </td>
+                            <td className="px-4 py-3 align-middle">
                               <button
                                 type="button"
                                 onClick={() => {
-                                  void saveBuyCode(product.id);
+                                  void saveRow(
+                                    product.id,
+                                    product.effectiveBuyCode,
+                                    product.stockQuantity
+                                  );
                                 }}
-                                disabled={buyCodeBusyId === product.id}
-                                className="rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-60"
+                                disabled={isBusy}
+                                className={violetBtn}
                               >
-                                {buyCodeBusyId === product.id ? "Saving..." : "Save"}
+                                {isBusy ? "…" : "Save"}
                               </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
-              {buyCodeError ? (
-                <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {buyCodeError}
-                </p>
-              ) : null}
-              {discountError ? (
-                <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {discountError}
-                </p>
-              ) : null}
-              {selectedOverlayProductId && overlaySync.error ? (
-                <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {overlaySync.error}
-                </p>
-              ) : null}
-            </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="rounded-xl border border-zinc-200 bg-white p-6">
-                <h3 className="text-base font-semibold">Attach Existing Product</h3>
-                <input
-                  value={search}
-                  onChange={(eventItem) => setSearch(eventItem.target.value)}
-                  placeholder="Search product name..."
-                  className="mt-3 w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-500"
-                />
-                <input
-                  value={attachBuyCode}
-                  onChange={(eventItem) => setAttachBuyCode(eventItem.target.value)}
-                  placeholder="Buy code for selected product (e.g. 37)"
-                  className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-500"
-                />
-                <div className="mt-3 max-h-64 space-y-2 overflow-auto">
-                  {addableProducts.length === 0 ? (
-                    <p className="text-sm text-zinc-600">No matching products.</p>
-                  ) : (
-                    addableProducts.map((product) => (
-                      <div
-                        key={product.id}
-                        className="flex items-center justify-between rounded-md border border-zinc-200 px-3 py-2"
-                      >
-                        <span className="text-sm">
-                          {product.name} ({formatStorefrontPrice(product.price, product.currency)})
-                        </span>
-                        <button
-                          type="button"
-                          disabled={attachingId === product.id}
-                          onClick={() => {
-                            void onAttachExisting(product.id);
-                          }}
-                          className="rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100 disabled:opacity-60"
-                        >
-                          {attachingId === product.id ? "Adding..." : "Add"}
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-                {attachError ? (
-                  <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {attachError}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="rounded-xl border border-zinc-200 bg-white p-6">
-                <h3 className="text-base font-semibold">Create New Product</h3>
-                <form className="mt-3 space-y-3" onSubmit={onAddProduct}>
-                  <input
-                    value={newName}
-                    onChange={(eventItem) => setNewName(eventItem.target.value)}
-                    required
-                    placeholder="Product name"
-                    className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-500"
-                  />
-                  <input
-                    value={newPrice}
-                    onChange={(eventItem) => setNewPrice(eventItem.target.value)}
-                    required
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Price"
-                    className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-500"
-                  />
-                  <input
-                    value={newBuyCode}
-                    onChange={(eventItem) => setNewBuyCode(eventItem.target.value)}
-                    required
-                    placeholder="Buy code (e.g. 37)"
-                    className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-500"
-                  />
-                  <input
-                    value={newProductUrl}
-                    onChange={(eventItem) => setNewProductUrl(eventItem.target.value)}
-                    placeholder="Product URL (optional)"
-                    className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-500"
-                  />
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-600">
-                      Product image (required)
-                    </label>
-                    <input
-                      type="file"
-                      required
-                      accept="image/jpeg,image/png,image/webp"
-                      className="mt-1 w-full text-sm text-zinc-700 file:mr-3 file:rounded-md file:border file:border-zinc-300 file:bg-zinc-50 file:px-3 file:py-1.5 file:text-sm"
-                      onChange={(eventItem) => {
-                        const f = eventItem.target.files?.[0] ?? null;
-                        setNewImageFile(f);
-                        eventItem.target.value = "";
-                      }}
-                    />
-                    {newImagePreviewUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={newImagePreviewUrl}
-                        alt="Selected product"
-                        className="mt-2 h-20 w-20 rounded-md border border-zinc-200 object-cover"
-                      />
-                    ) : null}
-                  </div>
-                  {addError ? (
-                    <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                      {addError}
+              {listError || buyCodeError || discountError || (selectedOverlayProductId && overlaySync.error) ? (
+                <div className="shrink-0 space-y-2 border-t border-violet-50 px-4 py-3 sm:px-5">
+                  {listError ? (
+                    <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {listError}
                     </p>
                   ) : null}
-                  <button
-                    type="submit"
-                    disabled={addingProduct}
-                    className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                  >
-                    {addingProduct ? "Adding..." : "Create & Attach"}
-                  </button>
-                </form>
-              </div>
+                  {buyCodeError ? (
+                    <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {buyCodeError}
+                    </p>
+                  ) : null}
+                  {discountError ? (
+                    <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {discountError}
+                    </p>
+                  ) : null}
+                  {selectedOverlayProductId && overlaySync.error ? (
+                    <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {overlaySync.error}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <aside className="rounded-xl border border-zinc-200 bg-white p-4">
-            <h2 className="text-lg font-semibold">Live Comments</h2>
-            <p className="mt-1 text-xs text-zinc-500">
-              Temporary realtime panel while show is live.
-            </p>
-            <div className="mt-3 max-h-[75vh] space-y-2 overflow-auto">
+          <aside className={`flex min-h-0 flex-col overflow-hidden ${cardClass} max-lg:min-h-64 lg:h-full`}>
+            <div className="shrink-0 border-b border-violet-50 px-4 py-4 sm:px-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-700">
+                  <ChatBubbleIcon size="sm" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-zinc-900">Live Comments</h2>
+                  <p className="mt-0.5 text-sm text-zinc-500">
+                    Realtime comments while the show is live.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
               {comments.length === 0 ? (
-                <p className="text-sm text-zinc-500">No comments yet.</p>
+                <div className="flex h-full min-h-[12rem] flex-col items-center justify-center px-2 text-center">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-violet-100 text-violet-500">
+                    <ChatBubbleIcon size="lg" className="text-violet-500" />
+                  </div>
+                  <p className="mt-5 text-sm font-semibold text-zinc-800">No comments yet.</p>
+                  <p className="mt-1 max-w-[15rem] text-sm leading-relaxed text-zinc-500">
+                    Comments will appear here when viewers start chatting.
+                  </p>
+                </div>
               ) : (
-                comments.map((comment) => (
-                  <article key={comment.id} className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
-                    <p className="text-sm font-semibold text-zinc-800">{comment.author}</p>
-                    <p className="mt-1 text-sm text-zinc-700">{comment.text || "(empty comment)"}</p>
-                    <p className="mt-1 text-[11px] text-zinc-500">
-                      {new Date(comment.createdAt).toLocaleTimeString()}
-                    </p>
-                  </article>
-                ))
+                <div className="space-y-3">
+                  {comments.map((comment) => (
+                    <article
+                      key={comment.id}
+                      className="rounded-xl border border-violet-100 bg-violet-50/40 p-3"
+                    >
+                      <p className="text-sm font-semibold text-violet-950">{comment.author}</p>
+                      <p className="mt-1 text-sm text-zinc-700">
+                        {comment.text || "(empty comment)"}
+                      </p>
+                      <p className="mt-1 text-[11px] text-zinc-500">
+                        {new Date(comment.createdAt).toLocaleTimeString()}
+                      </p>
+                    </article>
+                  ))}
+                </div>
               )}
             </div>
           </aside>
         </section>
       )}
-    </>
+
+      <CreateLiveProductModal
+        open={createModalOpen}
+        busy={creatingProduct}
+        error={createError}
+        onClose={() => {
+          if (!creatingProduct) {
+            setCreateModalOpen(false);
+            setCreateError(null);
+          }
+        }}
+        onSubmit={onCreateProduct}
+      />
+    </div>
   );
 }
-
