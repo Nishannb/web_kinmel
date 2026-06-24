@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { AppProvider } from "@/components/AppProvider";
-import { SITE_URL, rootMetadataOther } from "@/lib/siteMetadata";
+import { FACEBOOK_APP_ID, SITE_URL, rootMetadataOther } from "@/lib/siteMetadata";
 
 import "./globals.css";
 
@@ -51,6 +51,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <meta property="fb:app_id" content={FACEBOOK_APP_ID} />
+      </head>
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <AppProvider>{children}</AppProvider>
       </body>

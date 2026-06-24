@@ -55,11 +55,7 @@ export function buildPageMetadata({
 }
 
 export function rootMetadataOther(): Record<string, string> {
-  const other: Record<string, string> = {
+  return {
     "facebook-domain-verification": "28jcv1v97tuet1o29sj0jzplvuah84",
   };
-  if (FACEBOOK_APP_ID) {
-    other["fb:app_id"] = FACEBOOK_APP_ID;
-  }
-  return other;
 }
