@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { LegalPageShell } from "@/components/legal/LegalPageShell";
+import { buildPageMetadata } from "@/lib/siteMetadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
+  path: "/privacy-policy",
   title: "Privacy Policy",
   description: "How Kinmel collects, uses, and protects your data.",
-};
+});
 
 export default function PrivacyPolicyPage() {
   return (

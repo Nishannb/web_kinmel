@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { LegalPageShell } from "@/components/legal/LegalPageShell";
+import { buildPageMetadata } from "@/lib/siteMetadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
+  path: "/terms",
   title: "Terms of Service",
   description: "Terms for using the Kinmel app and website.",
-};
+});
 
 export default function TermsPage() {
   return (

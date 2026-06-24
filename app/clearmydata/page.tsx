@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { LegalPageShell } from "@/components/legal/LegalPageShell";
+import { buildPageMetadata } from "@/lib/siteMetadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
+  path: "/clearmydata",
   title: "Clear my data",
   description: "Request deletion of your Kinmel account and associated data.",
-};
+});
 
 export default function ClearMyDataPage() {
   return (

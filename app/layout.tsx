@@ -2,27 +2,30 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { AppProvider } from "@/components/AppProvider";
+import { SITE_URL, rootMetadataOther } from "@/lib/siteMetadata";
 
 import "./globals.css";
 
 const siteDescription =
   "Shoppable Instagram live and recorded video — product overlays, comment buy codes, and web checkout for Nepal.";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.kinmel.shop";
-
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Kinmel",
     template: "%s · Kinmel",
   },
   description: siteDescription,
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
     type: "website",
     locale: "en_US",
     siteName: "Kinmel",
     title: "Kinmel",
     description: siteDescription,
+    url: SITE_URL,
     images: [
       {
         url: "/kinmel-logo/512.png",
@@ -38,9 +41,7 @@ export const metadata: Metadata = {
     description: siteDescription,
     images: ["/kinmel-logo/512.png"],
   },
-  other: {
-    "facebook-domain-verification": "28jcv1v97tuet1o29sj0jzplvuah84",
-  },
+  other: rootMetadataOther(),
 };
 
 /**
