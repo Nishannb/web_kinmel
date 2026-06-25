@@ -51,6 +51,9 @@ export function buildPageMetadata({
       description,
       images: ["/kinmel-logo/512.png"],
     },
+    facebook: {
+      appId: FACEBOOK_APP_ID,
+    },
   };
 }
 

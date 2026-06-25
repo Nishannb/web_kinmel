@@ -73,7 +73,7 @@ export default function HomePage() {
             Live commerce for Nepal
           </p>
           <h1 className="mt-3 max-w-2xl text-4xl font-extrabold leading-tight tracking-tight text-zinc-900 sm:text-5xl">
-            Shoppable Instagram video — live or recorded.
+            Shoppable Instagram videos — live or recorded.
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-zinc-600">
             Put product overlays <strong className="text-violet-800">right on the video</strong>, tied to
