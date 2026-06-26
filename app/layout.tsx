@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { AppProvider } from "@/components/AppProvider";
-import { FACEBOOK_APP_ID, SITE_URL, rootMetadataOther } from "@/lib/siteMetadata";
+import { FACEBOOK_APP_ID, SITE_URL } from "@/lib/siteMetadata";
 
 import "./globals.css";
 
@@ -44,7 +44,11 @@ export const metadata: Metadata = {
   facebook: {
     appId: FACEBOOK_APP_ID,
   },
-  other: rootMetadataOther(),
+  verification: {
+    other: {
+      "facebook-domain-verification": "28jcv1v97tuet1o29sj0jzplvuah84",
+    },
+  },
 };
 
 /**

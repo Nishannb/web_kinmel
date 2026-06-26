@@ -15,6 +15,7 @@ import {
 import { useOverlaySync } from "@/hooks/useOverlaySync";
 import type { Product } from "@/lib/appTypes";
 import { formatStorefrontPrice } from "@/lib/formatNpr";
+import { humanizeKinmelApiError } from "@/lib/humanizeKinmelApiError";
 import { getBackendWsBase } from "@/lib/publicConfig";
 import { supabase } from "@/lib/supabase";
 import { getSafeSession } from "@/lib/supabaseAuth";
@@ -85,7 +86,9 @@ export default function LiveWorkspacePage() {
     catalogProducts,
   } = useAppState();
   const event = getEventById(eventId);
-  const overlaySync = useOverlaySync(event?.id ?? null);
+  const overlaySync = useOverlaySync(
+    event?.status === "live" ? (event.id ?? null) : null
+  );
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -273,7 +276,7 @@ export default function LiveWorkspacePage() {
       setCreateModalOpen(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setCreateError(message);
+      setCreateError(humanizeKinmelApiError(message));
     } finally {
       setCreatingProduct(false);
     }
@@ -292,7 +295,7 @@ export default function LiveWorkspacePage() {
       overlaySync.forceSync();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setListError(message);
+      setListError(humanizeKinmelApiError(message));
     } finally {
       setOverlayBusyId(null);
     }
@@ -319,7 +322,7 @@ export default function LiveWorkspacePage() {
       overlaySync.forceSync();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setBuyCodeError(message);
+      setBuyCodeError(humanizeKinmelApiError(message));
     } finally {
       setBuyCodeBusyId(null);
     }
@@ -340,7 +343,7 @@ export default function LiveWorkspacePage() {
       overlaySync.forceSync();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setDiscountError(message);
+      setDiscountError(humanizeKinmelApiError(message));
     } finally {
       setDiscountBusyId(null);
     }
@@ -364,7 +367,7 @@ export default function LiveWorkspacePage() {
       await updateCatalogProductStock(productId, parsed);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setListError(message);
+      setListError(humanizeKinmelApiError(message));
     } finally {
       setStockBusyId(null);
     }
@@ -710,7 +713,7 @@ export default function LiveWorkspacePage() {
                   ) : null}
                   {selectedOverlayProductId && overlaySync.error ? (
                     <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                      {overlaySync.error}
+                      {humanizeKinmelApiError(overlaySync.error)}
                     </p>
                   ) : null}
                 </div>

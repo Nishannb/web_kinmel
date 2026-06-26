@@ -56,9 +56,3 @@ export function buildPageMetadata({
     },
   };
 }
-
-export function rootMetadataOther(): Record<string, string> {
-  return {
-    "facebook-domain-verification": "28jcv1v97tuet1o29sj0jzplvuah84",
-  };
-}

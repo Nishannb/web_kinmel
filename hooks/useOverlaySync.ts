@@ -7,6 +7,7 @@ import {
   pushOverlayState,
 } from "@/lib/backendClient";
 import { defaultOverlaySettings } from "@/lib/defaults";
+import { humanizeKinmelApiError } from "@/lib/humanizeKinmelApiError";
 
 export type OverlaySyncStatus =
   | "idle"
@@ -82,7 +83,7 @@ export function useOverlaySync(liveSessionId: string | null): {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         setStatus("error");
-        setError(message);
+        setError(humanizeKinmelApiError(message));
         inFlightRef.current = false;
         return;
       }
@@ -117,6 +118,8 @@ export function useOverlaySync(liveSessionId: string | null): {
   useEffect(() => {
     if (!liveSessionId) {
       lastPushedRef.current = null;
+      setError(null);
+      setStatus("idle");
       return;
     }
     queueMicrotask(() => {
@@ -147,7 +150,11 @@ export function useOverlaySync(liveSessionId: string | null): {
 
   const forceSync = useCallback(() => {
     if (!liveSessionId) return;
-    queuedPayloadRef.current = settings;
+    // setSettings() queues the new payload synchronously; do not overwrite it with
+    // stale React state when selectOverlayProduct calls setSettings + forceSync.
+    if (!queuedPayloadRef.current) {
+      queuedPayloadRef.current = settings;
+    }
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       inFlightRef.current = false;
