@@ -166,14 +166,25 @@ export default function LiveWorkspacePage() {
     };
     const mapRow = (row: Record<string, unknown>): LiveCommentItem => {
       const raw = (row.raw_payload ?? {}) as Record<string, unknown>;
-      const fallbackAuthor =
-        (raw.username as string | undefined) ||
-        (raw.from as string | undefined) ||
-        "Viewer";
+      let author = "Viewer";
+      const entry = raw.entry;
+      if (Array.isArray(entry) && entry.length > 0) {
+        const changes = (entry[0] as Record<string, unknown>).changes;
+        if (Array.isArray(changes) && changes.length > 0) {
+          const value = (changes[0] as Record<string, unknown>).value as
+            | Record<string, unknown>
+            | undefined;
+          const from = value?.from as Record<string, unknown> | undefined;
+          const username = from?.username;
+          if (typeof username === "string" && username.trim()) {
+            author = username.trim();
+          }
+        }
+      }
       return {
         id: String(row.id ?? Math.random()),
         text: String(row.comment_text ?? ""),
-        author: fallbackAuthor,
+        author,
         createdAt: String(row.created_at ?? new Date().toISOString()),
       };
     };
@@ -196,7 +207,22 @@ export default function LiveWorkspacePage() {
     let ws: WebSocket | null = null;
     let pingTimer: ReturnType<typeof setInterval> | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let fallbackPollTimer: ReturnType<typeof setInterval> | null = null;
+    let wsConnected = false;
     let reconnectAttempt = 0;
+
+    const startFallbackPoll = () => {
+      if (fallbackPollTimer) return;
+      fallbackPollTimer = setInterval(() => {
+        if (!wsConnected) void loadInitial();
+      }, 5000);
+    };
+    const stopFallbackPoll = () => {
+      if (fallbackPollTimer) {
+        clearInterval(fallbackPollTimer);
+        fallbackPollTimer = null;
+      }
+    };
 
     const connect = async () => {
       try {
@@ -206,6 +232,8 @@ export default function LiveWorkspacePage() {
         ws = new WebSocket(`${socketBase}/ws/live-sessions/${event.id}/comments`);
         ws.onopen = () => {
           reconnectAttempt = 0;
+          wsConnected = true;
+          stopFallbackPoll();
           ws?.send(JSON.stringify({ type: "auth", token }));
           if (pingTimer) clearInterval(pingTimer);
           pingTimer = setInterval(() => {
@@ -218,6 +246,11 @@ export default function LiveWorkspacePage() {
             const parsed = JSON.parse(ev.data) as
               | { type: string; comment?: Record<string, unknown> }
               | Record<string, unknown>;
+            if (parsed.type === "comments.ready") {
+              wsConnected = true;
+              stopFallbackPoll();
+              return;
+            }
             if (
               parsed.type === "comment.insert" &&
               parsed.comment &&
@@ -234,7 +267,13 @@ export default function LiveWorkspacePage() {
             }
           } catch {}
         };
+        ws.onerror = () => {
+          wsConnected = false;
+          startFallbackPoll();
+        };
         ws.onclose = () => {
+          wsConnected = false;
+          startFallbackPoll();
           if (!isMounted) return;
           reconnectAttempt += 1;
           const delay = Math.min(15000, 1000 * 2 ** (reconnectAttempt - 1));
@@ -242,12 +281,16 @@ export default function LiveWorkspacePage() {
             void connect();
           }, delay);
         };
-      } catch {}
+      } catch {
+        wsConnected = false;
+        startFallbackPoll();
+      }
     };
     void connect();
 
     return () => {
       isMounted = false;
+      stopFallbackPoll();
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (pingTimer) clearInterval(pingTimer);
       try {

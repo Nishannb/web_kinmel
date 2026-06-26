@@ -8,6 +8,35 @@ import { postCodCheckout, postEsewaInit, postKhaltiInit, type EsewaInitResponse 
 import { formatStorefrontPrice, isNepalRupeesCurrency } from "@/lib/formatNpr";
 import { KinmelBrandLink, KinmelLogoMark } from "@/components/KinmelLogo";
 
+function persistEsewaCheckoutContext(productId: string, transactionUuid: string) {
+  try {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(`esewa_form_posted:${transactionUuid}`, "1");
+    window.sessionStorage.setItem("esewa_txn", transactionUuid);
+    window.localStorage.setItem("kinmel_last_buy_product_id", productId);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** POST signed fields to eSewa in the same window (required on mobile Safari / Instagram). */
+function submitEsewaPaymentGateway(res: EsewaInitResponse) {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = res.payment_url;
+  form.target = "_self";
+  form.style.display = "none";
+  for (const [name, value] of Object.entries(res.form_fields)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  }
+  document.body.appendChild(form);
+  form.submit();
+}
+
 const COD_SURCHARGE = 0.05;
 
 /** Light green accent (emerald) for checkout UI */
@@ -123,7 +152,6 @@ export default function PublicBuyPage() {
   const params = useParams();
   const pathname = usePathname();
   const productId = typeof params?.productId === "string" ? params.productId : "";
-  const formRef = useRef<HTMLFormElement>(null);
   const fetchSeqRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
@@ -154,6 +182,12 @@ export default function PublicBuyPage() {
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [esewaPost, setEsewaPost] = useState<EsewaInitResponse | null>(null);
+
+  useEffect(() => {
+    if (paymentMethod !== "esewa") {
+      setEsewaPost(null);
+    }
+  }, [paymentMethod]);
 
   useEffect(() => {
     if (!productId) {
@@ -203,30 +237,6 @@ export default function PublicBuyPage() {
       setQuantity(Math.max(1, tracked));
     }
   }, [product, quantity]);
-
-  useEffect(() => {
-    if (!esewaPost || !formRef.current) return;
-    const form = formRef.current;
-    const guardKey = `esewa_form_posted:${esewaPost.transaction_uuid}`;
-    try {
-      if (typeof window !== "undefined" && window.sessionStorage.getItem(guardKey)) {
-        return;
-      }
-    } catch {
-      /* ignore */
-    }
-    try {
-      if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(guardKey, "1");
-        window.sessionStorage.setItem("esewa_txn", esewaPost.transaction_uuid);
-        window.localStorage.setItem("kinmel_last_buy_product_id", productId);
-      }
-    } catch {
-      /* ignore */
-    }
-    form.target = "_blank";
-    form.submit();
-  }, [esewaPost, productId]);
 
   const payloadBase = () => ({
     product_id: productId,
@@ -285,7 +295,9 @@ export default function PublicBuyPage() {
         window.location.href = res.payment_url;
       } else {
         const res = await postEsewaInit(payloadBase());
+        persistEsewaCheckoutContext(productId, res.transaction_uuid);
         setEsewaPost(res);
+        submitEsewaPaymentGateway(res);
       }
     } catch (e) {
       setFormError(e instanceof Error ? e.message : String(e));
@@ -688,11 +700,23 @@ export default function PublicBuyPage() {
               </button>
               <p className="mt-2 text-center text-xs text-zinc-500">
                 {paymentMethod === "esewa"
-                  ? "You won't be charged yet"
+                  ? "You will be redirected to eSewa to complete payment"
                   : paymentMethod === "khalti"
                     ? "You will be redirected to Khalti to complete payment"
                     : "You'll pay when your order arrives (COD includes a small handling fee)"}
               </p>
+              {esewaPost && paymentMethod === "esewa" ? (
+                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-center">
+                  <p className="text-sm text-emerald-800">Opening eSewa…</p>
+                  <button
+                    type="button"
+                    className={`mt-3 w-full rounded-xl px-4 py-3 text-sm font-semibold ${accent.btn} ${accent.btnText}`}
+                    onClick={() => submitEsewaPaymentGateway(esewaPost)}
+                  >
+                    Continue to eSewa
+                  </button>
+                </div>
+              ) : null}
             </section>
           </div>
           )}
@@ -725,14 +749,6 @@ export default function PublicBuyPage() {
           </div>
         </div>
       </footer>
-
-      {esewaPost ? (
-        <form ref={formRef} method="POST" action={esewaPost.payment_url} className="hidden" aria-hidden>
-          {Object.entries(esewaPost.form_fields).map(([name, value]) => (
-            <input key={name} type="hidden" name={name} value={value} />
-          ))}
-        </form>
-      ) : null}
     </div>
   );
 }

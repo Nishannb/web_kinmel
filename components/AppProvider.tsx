@@ -679,6 +679,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         throw error;
       }
+      await supabase.from("products").update({ sku: normalized }).eq("id", productId);
       await refreshData();
     },
     [events, isReady, refreshData]
