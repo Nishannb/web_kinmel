@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { KinmelBrandLink } from "@/components/KinmelLogo";
 import { useAppState } from "@/components/AppProvider";
+import { PUBLIC_REGISTRATION_ENABLED } from "@/lib/siteConfig";
 
 function safeNextPath(): string {
   if (typeof window === "undefined") return "/live-selling";
@@ -106,7 +107,7 @@ export default function LoginPage() {
           <p className="mt-6 text-center text-sm text-zinc-600">
             New to Kinmel?{" "}
             <Link href="/register" className="font-semibold text-violet-700 underline">
-              Register
+              {PUBLIC_REGISTRATION_ENABLED ? "Register" : "Request Kinmel Access"}
             </Link>
           </p>
         </section>

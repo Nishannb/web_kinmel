@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { KinmelBrandLink } from "@/components/KinmelLogo";
 import { useAppState } from "@/components/AppProvider";
+import { PUBLIC_REGISTRATION_ENABLED } from "@/lib/siteConfig";
 
 const steps = [
   {
@@ -59,7 +60,7 @@ export default function HomePage() {
                   href="/register"
                   className="rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:opacity-95"
                 >
-                  Register
+                  {PUBLIC_REGISTRATION_ENABLED ? "Register" : "Request Kinmel Access"}
                 </Link>
               </>
             )}
@@ -95,7 +96,7 @@ export default function HomePage() {
                   href="/register"
                   className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:opacity-95"
                 >
-                  Create account
+                  {PUBLIC_REGISTRATION_ENABLED ? "Create account" : "Request Kinmel Access"}
                 </Link>
                 <Link
                   href="/login"
@@ -227,11 +228,23 @@ export default function HomePage() {
               Live selling, products, and orders are only available after you{" "}
               <Link href="/login" className="font-semibold text-violet-700 underline">
                 log in
-              </Link>{" "}
-              or{" "}
-              <Link href="/register" className="font-semibold text-violet-700 underline">
-                register
               </Link>
+              {PUBLIC_REGISTRATION_ENABLED ? (
+                <>
+                  {" "}
+                  or{" "}
+                  <Link href="/register" className="font-semibold text-violet-700 underline">
+                    register
+                  </Link>
+                </>
+              ) : (
+                <>
+                  . New sellers can{" "}
+                  <Link href="/register" className="font-semibold text-violet-700 underline">
+                    request Kinmel access
+                  </Link>
+                </>
+              )}
               . There is no public shortcut into the seller portal.
             </p>
           </div>
