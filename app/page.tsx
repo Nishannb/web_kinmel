@@ -273,7 +273,7 @@ export default function HomePage() {
                   href="tel:+9779766044502"
                   className="font-semibold text-violet-700 transition hover:text-violet-900 hover:underline"
                 >
-                  +977 9766044502, +977 9769498715
+                  +977 9714535269, +977 9769498715
                 </a>
               </p>
             </div>

@@ -19,6 +19,15 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getSafeSession, isRecoverableAuthError, clearStaleAuthSession } from "@/lib/supabaseAuth";
 import { uploadProductImageToR2 } from "@/lib/uploadProductImageR2";
+import { validateBuyCode } from "@/lib/buyCode";
+
+function requireValidBuyCode(raw: string): string {
+  const result = validateBuyCode(raw);
+  if (!result.valid) {
+    throw new Error(result.message ?? "Enter a valid buy code.");
+  }
+  return result.normalized;
+}
 
 type CreateEventInput = {
   instagramAccountId: string;
@@ -403,10 +412,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Event not found.");
       }
       const nextDisplayOrder = targetEvent.products.length;
-      const callNumber = input.buyCode.trim();
-      if (!callNumber) {
-        throw new Error("Buy code is required.");
-      }
+      const callNumber = requireValidBuyCode(input.buyCode);
       if (!input.imageFile || input.imageFile.size === 0) {
         throw new Error("A product image is required.");
       }
@@ -472,13 +478,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!businessId) {
         throw new Error("No business found for this user.");
       }
-      const buyCode = input.buyCode.trim();
-      if (!buyCode) {
-        throw new Error("Buy code is required.");
-      }
-      if (/\s/.test(buyCode)) {
-        throw new Error("Buy code must be a single word with no spaces.");
-      }
+      const buyCode = requireValidBuyCode(input.buyCode);
       if (!input.imageFile || input.imageFile.size === 0) {
         throw new Error("A product image is required.");
       }
@@ -574,10 +574,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!catalogProduct) {
         throw new Error("Product not found in catalog.");
       }
-      const callNumber = catalogProduct.buyCode?.trim() ?? "";
-      if (!callNumber) {
-        throw new Error("This product needs a buy code in your catalog first.");
-      }
+      const callNumber = requireValidBuyCode(catalogProduct.buyCode ?? "");
       const lineupRes = await supabase.from("live_session_products").insert({
         live_session_id: eventId,
         product_id: productId,
@@ -603,10 +600,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Product is already in this event.");
       }
       const catalogProduct = catalogProducts.find((product) => product.id === productId);
-      const callNumber = (buyCode?.trim() || catalogProduct?.buyCode?.trim() || "");
-      if (!callNumber) {
-        throw new Error("Buy code is required.");
-      }
+      const callNumber = requireValidBuyCode(
+        buyCode?.trim() || catalogProduct?.buyCode?.trim() || ""
+      );
       const lineupRes = await supabase.from("live_session_products").insert({
         live_session_id: eventId,
         product_id: productId,

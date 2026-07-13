@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useAppState } from "@/components/AppProvider";
 import { ConsoleScrollPage } from "@/components/ConsoleScrollPage";
 import { formatStorefrontPrice } from "@/lib/formatNpr";
+import { sanitizeBuyCodeInput, validateBuyCode } from "@/lib/buyCode";
 
 export default function ProductsPage() {
   const { catalogProducts, createCatalogProduct, deleteCatalogProduct, updateCatalogProductStock } =
@@ -51,16 +52,17 @@ export default function ProductsPage() {
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const n = name.trim();
-    const code = buyCode.trim();
+    const buyCodeResult = validateBuyCode(buyCode);
+    const code = buyCodeResult.normalized;
     const p = Number(price);
     const stock = Number(stockQuantity);
-    if (!n || !code || Number.isNaN(p)) return;
-    if (!Number.isFinite(stock) || stock < 0 || !Number.isInteger(stock)) {
-      setError("Available quantity must be a whole number (0 or more).");
+    if (!n || Number.isNaN(p)) return;
+    if (!buyCodeResult.valid) {
+      setError(buyCodeResult.message ?? "Enter a valid buy code.");
       return;
     }
-    if (/\s/.test(code)) {
-      setError("Buy code must be a single word with no spaces.");
+    if (!Number.isFinite(stock) || stock < 0 || !Number.isInteger(stock)) {
+      setError("Available quantity must be a whole number (0 or more).");
       return;
     }
     if (!imageFile || imageFile.size === 0) {
@@ -280,14 +282,14 @@ export default function ProductsPage() {
                 <input
                   value={buyCode}
                   onChange={(event) =>
-                    setBuyCode(event.target.value.replace(/\s/g, "").toUpperCase())
+                    setBuyCode(sanitizeBuyCodeInput(event.target.value).toUpperCase())
                   }
                   required
-                  placeholder="MOCHI"
+                  placeholder="MOCHI or RED SHIRT"
                   className="w-full rounded-md border border-zinc-300 px-3 py-2 uppercase outline-none focus:border-zinc-500"
                 />
                 <span className="text-xs text-zinc-500">
-                  Shown on overlay — viewers comment this to buy.
+                  Up to 3 words — viewers comment this to buy.
                 </span>
               </label>
               <label className="block space-y-1">
