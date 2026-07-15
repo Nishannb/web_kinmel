@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { fetchPublicProductJson } from "@/lib/backendFetch";
 import { postCodCheckout, postEsewaInit, postKhaltiInit, type EsewaInitResponse } from "@/lib/checkoutClient";
+import {
+  loadCheckoutBuyerDetails,
+  saveCheckoutBuyerDetails,
+} from "@/lib/checkoutBuyerDetails";
 import { formatStorefrontPrice, isNepalRupeesCurrency } from "@/lib/formatNpr";
 import { KinmelBrandLink, KinmelLogoMark } from "@/components/KinmelLogo";
 
@@ -203,6 +207,16 @@ export default function PublicBuyPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
+    const saved = loadCheckoutBuyerDetails();
+    if (saved) {
+      setCustomerName(saved.customerName);
+      setPhone(saved.phone);
+      setAddress(saved.address);
+      setCity(saved.city);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!productId) {
       setLoading(false);
       setError("Missing product id.");
@@ -260,9 +274,50 @@ export default function PublicBuyPage() {
     quantity,
   });
 
-  const validateDetails = () => {
-    const p = payloadBase();
-    if (!p.customer_name || !p.phone || !p.address || !p.city) {
+  const persistBuyerDetails = (
+    override?: Partial<{
+      customerName: string;
+      phone: string;
+      address: string;
+      city: string;
+    }>,
+  ) => {
+    saveCheckoutBuyerDetails({
+      customerName: override?.customerName ?? customerName,
+      phone: override?.phone ?? phone,
+      address: override?.address ?? address,
+      city: override?.city ?? city,
+    });
+  };
+
+  /** Browser / Instagram autofill often fills the DOM without firing React onChange. */
+  const readDetailsFromForm = (form: HTMLFormElement) => {
+    const data = new FormData(form);
+    const next = {
+      customerName: String(data.get("name") ?? "").trim(),
+      address: String(data.get("street-address") ?? "").trim(),
+      city: String(data.get("address-level2") ?? "").trim(),
+      phone: String(data.get("tel") ?? "").trim(),
+    };
+    setCustomerName(next.customerName);
+    setAddress(next.address);
+    setCity(next.city);
+    setPhone(next.phone);
+    return next;
+  };
+
+  const validateDetailsValues = (values: {
+    customerName: string;
+    phone: string;
+    address: string;
+    city: string;
+  }) => {
+    if (
+      !values.customerName.trim() ||
+      !values.phone.trim() ||
+      !values.address.trim() ||
+      !values.city.trim()
+    ) {
       setFormError("Please enter your name, delivery address, city, and phone number.");
       return false;
     }
@@ -270,8 +325,15 @@ export default function PublicBuyPage() {
     return true;
   };
 
-  const goToPayment = () => {
-    if (!validateDetails()) return;
+  const validateDetails = () =>
+    validateDetailsValues({ customerName, phone, address, city });
+
+  const goToPayment = (form?: HTMLFormElement | null) => {
+    const values = form
+      ? readDetailsFromForm(form)
+      : { customerName, phone, address, city };
+    if (!validateDetailsValues(values)) return;
+    persistBuyerDetails(values);
     setPhase("payment");
   };
 
@@ -281,6 +343,7 @@ export default function PublicBuyPage() {
       setPhase("details");
       return;
     }
+    persistBuyerDetails();
     setBusy(true);
     try {
       if (paymentMethod === "cod") {
@@ -484,58 +547,93 @@ export default function PublicBuyPage() {
               <h2 id="details-heading" className="mb-4 text-lg font-semibold text-zinc-900">
                 Your details
               </h2>
-              <div className="space-y-4">
-                <label className="block text-sm font-medium text-zinc-700">
+              <form
+                className="space-y-4"
+                autoComplete="on"
+                method="post"
+                action="#"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  goToPayment(event.currentTarget);
+                }}
+              >
+                <label className="block text-sm font-medium text-zinc-700" htmlFor="checkout-name">
                   Full name
                   <input
+                    id="checkout-name"
+                    name="name"
+                    type="text"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
+                    onBlur={() => persistBuyerDetails()}
                     className={`mt-1.5 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none ring-emerald-500/15 ${accent.focus}`}
-                    autoComplete="name"
+                    autoComplete="shipping name"
+                    autoCapitalize="words"
+                    enterKeyHint="next"
+                    required
                   />
                 </label>
-                <label className="block text-sm font-medium text-zinc-700">
+                <label className="block text-sm font-medium text-zinc-700" htmlFor="checkout-address">
                   Delivery address
                   <textarea
+                    id="checkout-address"
+                    name="street-address"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
+                    onBlur={() => persistBuyerDetails()}
                     rows={3}
                     className={`mt-1.5 w-full resize-y rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none ring-emerald-500/15 ${accent.focus}`}
-                    autoComplete="street-address"
+                    autoComplete="shipping street-address"
+                    enterKeyHint="next"
+                    required
                   />
                 </label>
-                <label className="block text-sm font-medium text-zinc-700">
+                <label className="block text-sm font-medium text-zinc-700" htmlFor="checkout-city">
                   City
                   <input
+                    id="checkout-city"
+                    name="address-level2"
+                    type="text"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
+                    onBlur={() => persistBuyerDetails()}
                     className={`mt-1.5 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none ring-emerald-500/15 ${accent.focus}`}
-                    autoComplete="address-level2"
+                    autoComplete="shipping address-level2"
+                    autoCapitalize="words"
+                    enterKeyHint="next"
+                    required
                   />
                 </label>
-                <label className="block text-sm font-medium text-zinc-700">
+                <label className="block text-sm font-medium text-zinc-700" htmlFor="checkout-phone">
                   Phone number
                   <input
+                    id="checkout-phone"
+                    name="tel"
+                    type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    onBlur={() => persistBuyerDetails()}
                     className={`mt-1.5 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none ring-emerald-500/15 ${accent.focus}`}
-                    autoComplete="tel"
+                    autoComplete="shipping tel"
                     inputMode="tel"
+                    enterKeyHint="done"
+                    required
                   />
                 </label>
-              </div>
 
-              {formError && phase === "details" ? (
-                <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{formError}</p>
-              ) : null}
+                {formError && phase === "details" ? (
+                  <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {formError}
+                  </p>
+                ) : null}
 
-              <button
-                type="button"
-                onClick={goToPayment}
-                className={`mt-6 w-full rounded-2xl px-4 py-4 text-sm font-semibold shadow-sm ${accent.btn} ${accent.btnText}`}
-              >
-                Continue
-              </button>
+                <button
+                  type="submit"
+                  className={`mt-2 w-full rounded-2xl px-4 py-4 text-sm font-semibold shadow-sm ${accent.btn} ${accent.btnText}`}
+                >
+                  Continue
+                </button>
+              </form>
             </section>
 
             <section className="w-1/2 shrink-0 pl-2 md:pl-4" aria-labelledby="payment-heading">
