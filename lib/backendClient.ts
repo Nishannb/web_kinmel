@@ -1,6 +1,5 @@
 import { getBackendHttpBase } from "@/lib/publicConfig";
 import { backendRequestHeaders } from "@/lib/backendFetch";
-import { supabase } from "@/lib/supabase";
 import { getSafeSession } from "@/lib/supabaseAuth";
 
 function backendUrl(path: string): string {
@@ -93,11 +92,8 @@ async function safeBackendFetch(
 ): Promise<Response> {
   try {
     return await fetch(input, init);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new Error(
-      `NetworkError when attempting to fetch resource. Backend: ${getBackendHttpBase()}. Details: ${message}`
-    );
+  } catch {
+    throw new Error("Something went wrong, please try again.");
   }
 }
 
@@ -174,4 +170,205 @@ export async function saveStreamConfig(
     }
   );
   return readJson<StreamConfigEnvelope>(res);
+}
+
+export type BookDeliveryQuote = {
+  price: number | null;
+  discount: number | null;
+  promo_discount: number | null;
+  additional_charge: number | null;
+  final_price: number | null;
+  cod_enabled: boolean | null;
+  cod_percentage: number | null;
+  plan_id?: unknown;
+};
+
+export type BookDeliveryResult = {
+  ok: boolean;
+  order_id: string;
+  provider: string;
+  store_id?: number;
+  item_weight?: number;
+  token_refreshed?: boolean;
+  message?: string;
+  quote?: BookDeliveryQuote;
+  recipient?: {
+    city?: string;
+    address_line1?: string | null;
+    address_line2?: string | null;
+    pathao_city_id?: number;
+    pathao_zone_id?: number;
+  };
+};
+
+export type SellerOrderAddress = {
+  line1: string | null;
+  line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+  is_default: boolean | null;
+};
+
+export type SellerOrderCustomer = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  customer_addresses?: SellerOrderAddress[] | null;
+};
+
+export type SellerOrderItem = {
+  id: string;
+  product_id: string | null;
+  product_name_snapshot: string;
+  unit_price_snapshot: number;
+  quantity: number;
+  line_total: number;
+  products?: { image_url: string | null } | { image_url: string | null }[] | null;
+};
+
+export type SellerOrder = {
+  id: string;
+  status: string;
+  currency: string;
+  subtotal: number;
+  shipping_fee: number;
+  tax: number;
+  total: number;
+  payment_method: string | null;
+  esewa_transaction_uuid: string | null;
+  khalti_pidx: string | null;
+  checkout_name?: string | null;
+  order_tracking_id?: string | null;
+  parcel_consignment_id?: string | null;
+  parcel_status?: string | null;
+  ordered_at: string;
+  delivered_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  live_session_id: string | null;
+  customers: SellerOrderCustomer | SellerOrderCustomer[] | null;
+  order_items: SellerOrderItem[] | null;
+  live_sessions: { id: string; title: string | null } | null;
+  return_shipping_fee?: number;
+};
+
+export async function fetchBusinessOrders(businessId: string): Promise<SellerOrder[]> {
+  const headers = await authHeaders();
+  const res = await safeBackendFetch(
+    backendUrl(`/businesses/${encodeURIComponent(businessId)}/orders`),
+    { headers, cache: "no-store" }
+  );
+  const data = await readJson<{ ok?: boolean; orders?: SellerOrder[] }>(res);
+  return Array.isArray(data.orders) ? data.orders : [];
+}
+
+export async function updateOrderStatus(
+  orderId: string,
+  businessId: string,
+  status: string
+): Promise<void> {
+  const headers = await authHeaders();
+  const res = await safeBackendFetch(
+    backendUrl(`/orders/${encodeURIComponent(orderId)}/status`),
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ business_id: businessId, status }),
+    }
+  );
+  await readJson<{ ok?: boolean }>(res);
+}
+
+export type EarningsPeriod = "daily" | "weekly" | "monthly";
+
+export type BusinessEarnings = {
+  ok: boolean;
+  period: EarningsPeriod;
+  currency: string;
+  timezone: string;
+  period_start: string;
+  period_end: string;
+  payment_processing_fee_rate: number;
+  orders_count: number;
+  gross_sales: number;
+  payment_processing_fees?: number;
+  sales_after_processing: number;
+  deliveries_booked: number;
+  returns_count: number;
+  shipping_outbound: number;
+  shipping_return: number;
+  shipping_total: number;
+  receivable: number;
+};
+
+export async function fetchBusinessEarnings(
+  businessId: string,
+  period: EarningsPeriod
+): Promise<BusinessEarnings> {
+  const headers = await authHeaders();
+  const sp = new URLSearchParams({ period });
+  const res = await safeBackendFetch(
+    backendUrl(
+      `/businesses/${encodeURIComponent(businessId)}/earnings?${sp.toString()}`
+    ),
+    { headers, cache: "no-store" }
+  );
+  return readJson<BusinessEarnings>(res);
+}
+
+export async function bookOrderDelivery(
+  orderId: string,
+  businessId: string,
+  itemWeightKg: number
+): Promise<BookDeliveryResult> {
+  const headers = await authHeaders();
+  const res = await safeBackendFetch(
+    backendUrl(`/orders/${encodeURIComponent(orderId)}/book-delivery`),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        business_id: businessId,
+        item_weight: itemWeightKg,
+      }),
+    }
+  );
+  return readJson<BookDeliveryResult>(res);
+}
+
+export type PlaceDeliveryResult = {
+  ok: boolean;
+  order_id: string;
+  provider: string;
+  status?: string;
+  store_id?: number;
+  item_weight?: number;
+  amount_to_collect?: number;
+  order_tracking_id?: string;
+  parcel_consignment_id?: string;
+  parcel_status?: string | null;
+  shipping_fee?: number;
+  message?: string;
+};
+
+export async function placeOrderDelivery(
+  orderId: string,
+  businessId: string,
+  itemWeightKg: number
+): Promise<PlaceDeliveryResult> {
+  const headers = await authHeaders();
+  const res = await safeBackendFetch(
+    backendUrl(`/orders/${encodeURIComponent(orderId)}/place-delivery`),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        business_id: businessId,
+        item_weight: itemWeightKg,
+      }),
+    }
+  );
+  return readJson<PlaceDeliveryResult>(res);
 }

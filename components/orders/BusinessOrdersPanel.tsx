@@ -1,19 +1,27 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import Image from "next/image";
+import {
+  bookOrderDelivery,
+  fetchBusinessOrders,
+  placeOrderDelivery,
+  updateOrderStatus,
+} from "@/lib/backendClient";
 import { TableExpandButton } from "@/components/TableExpandButton";
 import { formatStorefrontPrice } from "@/lib/formatNpr";
 
 type OrderStatus =
   | "pending"
-  | "paid"
+  | "delivery_request_placed"
+  | "shipped"
+  | "delivered"
   | "fulfilled"
   | "cancelled"
-  | "refunded"
-  | "cod";
+  | "buyer_returned_delivery";
 
 type CustomerAddressRow = {
+  /** Seller-safe line (first comma segment stripped by the API). */
   line1: string | null;
   line2: string | null;
   city: string | null;
@@ -26,7 +34,6 @@ type CustomerAddressRow = {
 type CustomerEmbed = {
   id: string;
   name: string | null;
-  phone: string | null;
   email: string | null;
   customer_addresses?: CustomerAddressRow[] | null;
 };
@@ -57,7 +64,12 @@ export type BusinessOrderRow = {
   khalti_pidx: string | null;
   /** Name from checkout; shown instead of customers.name when set (per-order snapshot). */
   checkout_name?: string | null;
+  order_tracking_id?: string | null;
+  parcel_consignment_id?: string | null;
+  parcel_status?: string | null;
+  return_shipping_fee?: number | null;
   ordered_at: string;
+  delivered_at?: string | null;
   created_at: string;
   updated_at: string;
   live_session_id: string | null;
@@ -111,20 +123,43 @@ function shortId(id: string) {
 
 function statusBadgeClass(status: OrderStatus) {
   switch (status) {
-    case "paid":
-      return "bg-emerald-50 text-emerald-800 ring-emerald-600/20";
-    case "cod":
-      return "bg-sky-50 text-sky-800 ring-sky-600/20";
     case "pending":
       return "bg-amber-50 text-amber-900 ring-amber-600/20";
+    case "delivery_request_placed":
+      return "bg-violet-50 text-violet-900 ring-violet-600/20";
+    case "shipped":
+      return "bg-sky-50 text-sky-800 ring-sky-600/20";
+    case "delivered":
+      return "bg-emerald-50 text-emerald-800 ring-emerald-600/20";
     case "fulfilled":
       return "bg-zinc-100 text-zinc-800 ring-zinc-500/15";
     case "cancelled":
       return "bg-red-50 text-red-800 ring-red-600/20";
-    case "refunded":
-      return "bg-violet-50 text-violet-800 ring-violet-600/20";
+    case "buyer_returned_delivery":
+      return "bg-orange-50 text-orange-900 ring-orange-600/20";
     default:
       return "bg-zinc-100 text-zinc-700 ring-zinc-500/15";
+  }
+}
+
+function statusLabel(status: OrderStatus) {
+  switch (status) {
+    case "pending":
+      return "Pending";
+    case "delivery_request_placed":
+      return "Delivery Request placed";
+    case "shipped":
+      return "Shipped";
+    case "delivered":
+      return "Delivered";
+    case "fulfilled":
+      return "Fulfilled";
+    case "cancelled":
+      return "Cancelled";
+    case "buyer_returned_delivery":
+      return "Buyer returned delivery";
+    default:
+      return status;
   }
 }
 
@@ -183,15 +218,33 @@ type StatusFilter = "all" | OrderStatus;
 
 const ORDER_STATUS_OPTIONS: OrderStatus[] = [
   "pending",
-  "cod",
-  "paid",
+  "delivery_request_placed",
+  "shipped",
+  "delivered",
   "fulfilled",
   "cancelled",
-  "refunded",
+  "buyer_returned_delivery",
+];
+
+/** Statuses the seller may set; courier webhook owns the rest. */
+const SELLER_EDITABLE_STATUSES: OrderStatus[] = [
+  "pending",
+  "delivery_request_placed",
+  "shipped",
+  "cancelled",
+];
+
+const SELLER_LOCKED_STATUSES: OrderStatus[] = [
+  "delivered",
+  "fulfilled",
+  "buyer_returned_delivery",
 ];
 
 function coerceOrderStatus(raw: string): OrderStatus {
-  return ORDER_STATUS_OPTIONS.includes(raw as OrderStatus) ? (raw as OrderStatus) : "pending";
+  const s = (raw || "").trim().toLowerCase();
+  // Legacy statuses → fulfillment pending (payment lives on payment_method).
+  if (s === "paid" || s === "cod" || s === "refunded") return "pending";
+  return ORDER_STATUS_OPTIONS.includes(s as OrderStatus) ? (s as OrderStatus) : "pending";
 }
 
 export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
@@ -206,50 +259,40 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
   const [statusErrorByOrderId, setStatusErrorByOrderId] = useState<Record<string, string | null>>(
     {}
   );
+  const [bookBusyId, setBookBusyId] = useState<string | null>(null);
+  const [bookMessageByOrderId, setBookMessageByOrderId] = useState<
+    Record<string, { kind: "ok" | "err"; text: string } | null>
+  >({});
+  const [bookWeightByOrderId, setBookWeightByOrderId] = useState<Record<string, string>>({});
+  const [bookQuoteByOrderId, setBookQuoteByOrderId] = useState<
+    Record<
+      string,
+      {
+        finalPrice: number | null;
+        price: number | null;
+        weight: number;
+        storeId?: number;
+      } | null
+    >
+  >({});
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: qErr } = await supabase
-      .from("orders")
-      .select(
-        [
-          "id",
-          "status",
-          "currency",
-          "subtotal",
-          "shipping_fee",
-          "tax",
-          "total",
-          "payment_method",
-          "esewa_transaction_uuid",
-          "khalti_pidx",
-          "checkout_name",
-          "ordered_at",
-          "created_at",
-          "updated_at",
-          "live_session_id",
-          "customers ( id, name, phone, email, customer_addresses ( line1, line2, city, state, postal_code, country, is_default ) )",
-          "order_items ( id, product_id, product_name_snapshot, unit_price_snapshot, quantity, line_total, products ( image_url ) )",
-          "live_sessions ( id, title )",
-        ].join(", ")
-      )
-      .eq("business_id", businessId)
-      .order("ordered_at", { ascending: false });
-
-    if (qErr) {
-      setError(qErr.message);
-      setRows([]);
-    } else {
-      const raw = (data ?? []) as unknown as BusinessOrderRow[];
+    try {
+      const data = await fetchBusinessOrders(businessId);
       setRows(
-        raw.map((r) => ({
-          ...r,
+        data.map((r) => ({
+          ...(r as unknown as BusinessOrderRow),
           status: coerceOrderStatus(String(r.status ?? "pending")),
         }))
       );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load orders");
+      setRows([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [businessId]);
 
   useEffect(() => {
@@ -300,43 +343,129 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
   const saveOrderStatus = async (orderId: string, next: OrderStatus) => {
     setStatusBusyId(orderId);
     setStatusErrorByOrderId((prev) => ({ ...prev, [orderId]: null }));
-    const { error: rpcError } = await supabase.rpc("update_order_status_for_my_business", {
-      p_order_id: orderId,
-      p_status: next,
-    });
-    setStatusBusyId(null);
-    if (rpcError) {
-      const hint =
-        rpcError.message?.includes("function") && rpcError.message?.includes("does not exist")
-          ? " Apply the migration `20260514120000_orders_status_update_rpc.sql` in Supabase, then retry."
-          : "";
+    try {
+      await updateOrderStatus(orderId, businessId, next);
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === orderId
+            ? {
+                ...r,
+                status: next,
+                updated_at: new Date().toISOString(),
+              }
+            : r
+        )
+      );
+    } catch (err) {
+      const text = err instanceof Error ? err.message : "Update failed";
       setStatusErrorByOrderId((prev) => ({
         ...prev,
-        [orderId]: `${rpcError.message ?? "Update failed"}.${hint}`,
+        [orderId]: text,
+      }));
+    } finally {
+      setStatusBusyId(null);
+    }
+  };
+
+  const bookDelivery = async (orderId: string) => {
+    const rawWeight = (bookWeightByOrderId[orderId] ?? "").trim();
+    const weight = Number(rawWeight);
+    if (!Number.isFinite(weight) || weight < 0.5 || weight > 10) {
+      setBookMessageByOrderId((prev) => ({
+        ...prev,
+        [orderId]: {
+          kind: "err",
+          text: "Enter parcel weight between 0.5 and 10 kg.",
+        },
       }));
       return;
     }
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === orderId
-          ? {
-              ...r,
-              status: next,
-              updated_at: new Date().toISOString(),
-            }
-          : r
-      )
-    );
+
+    setBookBusyId(orderId);
+    setBookMessageByOrderId((prev) => ({ ...prev, [orderId]: null }));
+    setBookQuoteByOrderId((prev) => ({ ...prev, [orderId]: null }));
+    try {
+      const result = await bookOrderDelivery(orderId, businessId, weight);
+      const finalPrice = result.quote?.final_price ?? null;
+      const price = result.quote?.price ?? null;
+      setBookQuoteByOrderId((prev) => ({
+        ...prev,
+        [orderId]: {
+          finalPrice,
+          price,
+          weight,
+          storeId: result.store_id,
+        },
+      }));
+    } catch (err) {
+      const text = err instanceof Error ? err.message : "Book delivery failed";
+      setBookMessageByOrderId((prev) => ({
+        ...prev,
+        [orderId]: { kind: "err", text },
+      }));
+    } finally {
+      setBookBusyId(null);
+    }
+  };
+
+  const placeDelivery = async (orderId: string) => {
+    const quote = bookQuoteByOrderId[orderId];
+    const rawWeight = (bookWeightByOrderId[orderId] ?? "").trim();
+    const weight = Number(rawWeight || quote?.weight);
+    if (!Number.isFinite(weight) || weight < 0.5 || weight > 10) {
+      setBookMessageByOrderId((prev) => ({
+        ...prev,
+        [orderId]: {
+          kind: "err",
+          text: "Enter parcel weight between 0.5 and 10 kg.",
+        },
+      }));
+      return;
+    }
+
+    setBookBusyId(orderId);
+    setBookMessageByOrderId((prev) => ({ ...prev, [orderId]: null }));
+    try {
+      const result = await placeOrderDelivery(orderId, businessId, weight);
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === orderId
+            ? {
+                ...r,
+                status: coerceOrderStatus(
+                  String(result.status ?? "delivery_request_placed")
+                ),
+                shipping_fee: Number(result.shipping_fee ?? r.shipping_fee ?? 0),
+                order_tracking_id: result.order_tracking_id ?? r.order_tracking_id,
+                parcel_consignment_id:
+                  result.parcel_consignment_id ?? r.parcel_consignment_id,
+                parcel_status: result.parcel_status ?? r.parcel_status,
+              }
+            : r
+        )
+      );
+      setBookQuoteByOrderId((prev) => ({ ...prev, [orderId]: null }));
+      setBookMessageByOrderId((prev) => ({ ...prev, [orderId]: null }));
+    } catch (err) {
+      const text = err instanceof Error ? err.message : "Place delivery failed";
+      setBookMessageByOrderId((prev) => ({
+        ...prev,
+        [orderId]: { kind: "err", text },
+      }));
+    } finally {
+      setBookBusyId(null);
+    }
   };
 
   const statusOptions: { value: StatusFilter; label: string }[] = [
     { value: "all", label: "All" },
     { value: "pending", label: "Pending" },
-    { value: "paid", label: "Paid" },
-    { value: "cod", label: "COD" },
+    { value: "delivery_request_placed", label: "Delivery Request placed" },
+    { value: "shipped", label: "Shipped" },
+    { value: "delivered", label: "Delivered" },
     { value: "fulfilled", label: "Fulfilled" },
     { value: "cancelled", label: "Cancelled" },
-    { value: "refunded", label: "Refunded" },
+    { value: "buyer_returned_delivery", label: "Buyer returned delivery" },
   ];
 
   return (
@@ -449,16 +578,17 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                           <div className="truncate font-medium text-zinc-900">
                             {checkoutDisplayName(order, customer)}
                           </div>
-                          <div className="truncate text-xs text-zinc-500">
-                            {[customer?.phone, customer?.email].filter(Boolean).join(" · ") ||
-                              "—"}
-                          </div>
+                          {customer?.email?.trim() ? (
+                            <div className="truncate text-xs text-zinc-500">
+                              {customer.email.trim()}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="hidden px-3 py-3 xl:table-cell xl:px-4">
                           <span
                             className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${statusBadgeClass(rowStatus)}`}
                           >
-                            {rowStatus}
+                            {statusLabel(rowStatus)}
                           </span>
                         </td>
                         <td className="hidden whitespace-nowrap px-3 py-3 text-zinc-700 xl:table-cell xl:px-4">
@@ -498,11 +628,9 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                                   <dd className="mt-0.5 text-zinc-900">
                                     {checkoutDisplayName(order, customer)}
                                   </dd>
-                                  <dd className="text-xs text-zinc-500">
-                                    {[customer?.phone, customer?.email]
-                                      .filter(Boolean)
-                                      .join(" · ") || "—"}
-                                  </dd>
+                                  {customer?.email?.trim() ? (
+                                    <dd className="text-xs text-zinc-500">{customer.email.trim()}</dd>
+                                  ) : null}
                                 </div>
                                 <div>
                                   <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
@@ -512,7 +640,7 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                                     <span
                                       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${statusBadgeClass(rowStatus)}`}
                                     >
-                                      {rowStatus}
+                                      {statusLabel(rowStatus)}
                                     </span>
                                   </dd>
                                 </div>
@@ -542,7 +670,7 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                                     <span
                                       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${statusBadgeClass(rowStatus)}`}
                                     >
-                                      {rowStatus}
+                                      {statusLabel(rowStatus)}
                                     </span>
                                   </dd>
                                 </div>
@@ -644,23 +772,52 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                                   >
                                     Order status
                                   </label>
-                                  <select
-                                    id={`order-status-${order.id}`}
-                                    value={rowStatus}
-                                    disabled={statusBusyId === order.id}
-                                    onChange={(e) => {
-                                      const v = coerceOrderStatus(e.target.value);
-                                      if (v === rowStatus) return;
-                                      void saveOrderStatus(order.id, v);
-                                    }}
-                                    className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 disabled:opacity-60"
-                                  >
-                                    {ORDER_STATUS_OPTIONS.map((s) => (
-                                      <option key={s} value={s}>
-                                        {s}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  {SELLER_LOCKED_STATUSES.includes(rowStatus) ? (
+                                    <div className="mt-2 space-y-2">
+                                      <span
+                                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${statusBadgeClass(rowStatus)}`}
+                                      >
+                                        {statusLabel(rowStatus)}
+                                      </span>
+                                      {order.delivered_at ? (
+                                        <p className="text-xs text-zinc-500">
+                                          Delivered{" "}
+                                          {new Date(order.delivered_at).toLocaleString(undefined, {
+                                            dateStyle: "medium",
+                                            timeStyle: "short",
+                                          })}
+                                        </p>
+                                      ) : null}
+                                      <p className="text-xs leading-snug text-zinc-500">
+                                        Updated by the courier. You can still filter by this status
+                                        in order history.
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <select
+                                      id={`order-status-${order.id}`}
+                                      value={rowStatus}
+                                      disabled={statusBusyId === order.id}
+                                      onChange={(e) => {
+                                        const v = coerceOrderStatus(e.target.value);
+                                        if (
+                                          SELLER_LOCKED_STATUSES.includes(v) ||
+                                          !SELLER_EDITABLE_STATUSES.includes(v)
+                                        ) {
+                                          return;
+                                        }
+                                        if (v === rowStatus) return;
+                                        void saveOrderStatus(order.id, v);
+                                      }}
+                                      className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 disabled:opacity-60"
+                                    >
+                                      {SELLER_EDITABLE_STATUSES.map((s) => (
+                                        <option key={s} value={s}>
+                                          {statusLabel(s)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
                                   {statusBusyId === order.id ? (
                                     <p className="mt-2 text-xs text-zinc-500">Saving…</p>
                                   ) : null}
@@ -669,12 +826,97 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                                       {statusErrorByOrderId[order.id]}
                                     </p>
                                   ) : null}
-                                  <p className="mt-3 text-xs leading-snug text-zinc-500">
-                                    <span className="font-medium text-zinc-600">Paid</span>: payment
-                                    confirmed. <span className="font-medium text-zinc-600">Fulfilled</span>:
-                                    shipped or delivered. Use both steps when you separate money from
-                                    fulfillment.
-                                  </p>
+                                  <label
+                                    className="mt-3 block text-xs font-medium text-zinc-600"
+                                    htmlFor={`order-weight-${order.id}`}
+                                  >
+                                    Parcel weight (kg)
+                                  </label>
+                                  <input
+                                    id={`order-weight-${order.id}`}
+                                    type="number"
+                                    inputMode="decimal"
+                                    min={0.5}
+                                    max={10}
+                                    step={0.5}
+                                    placeholder="e.g. 1"
+                                    value={bookWeightByOrderId[order.id] ?? ""}
+                                    disabled={
+                                      bookBusyId === order.id ||
+                                      Boolean(order.parcel_consignment_id) ||
+                                      order.status === "delivery_request_placed"
+                                    }
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setBookWeightByOrderId((prev) => ({
+                                        ...prev,
+                                        [order.id]: v,
+                                      }));
+                                      // Clear prior quote when weight changes.
+                                      setBookQuoteByOrderId((prev) => ({
+                                        ...prev,
+                                        [order.id]: null,
+                                      }));
+                                      setBookMessageByOrderId((prev) => ({
+                                        ...prev,
+                                        [order.id]: null,
+                                      }));
+                                    }}
+                                    className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-violet-600 focus:ring-1 focus:ring-violet-600 disabled:opacity-60"
+                                  />
+                                  {!order.parcel_consignment_id &&
+                                  order.status !== "delivery_request_placed" ? (
+                                    <p className="mt-1.5 text-xs leading-snug text-zinc-500">
+                                      Please enter the correct weight of the delivery item.
+                                    </p>
+                                  ) : null}
+                                  {!order.parcel_consignment_id &&
+                                  order.status !== "delivery_request_placed" &&
+                                  bookQuoteByOrderId[order.id]?.finalPrice != null ? (
+                                    <div className="mt-3 space-y-1">
+                                      <div className="flex items-center gap-2 text-sm text-zinc-800">
+                                        <span>Delivery with</span>
+                                        <Image
+                                          src="/courier-logo/pathao.png"
+                                          alt="Pathao"
+                                          width={72}
+                                          height={22}
+                                          className="h-5 w-auto object-contain"
+                                        />
+                                      </div>
+                                      <p className="text-base font-semibold text-zinc-900">
+                                        NPR {bookQuoteByOrderId[order.id]?.finalPrice}
+                                      </p>
+                                    </div>
+                                  ) : null}
+                                  {!order.parcel_consignment_id &&
+                                  order.status !== "delivery_request_placed" ? (
+                                    <button
+                                      type="button"
+                                      disabled={bookBusyId === order.id}
+                                      onClick={() => {
+                                        if (bookQuoteByOrderId[order.id]?.finalPrice != null) {
+                                          void placeDelivery(order.id);
+                                        } else {
+                                          void bookDelivery(order.id);
+                                        }
+                                      }}
+                                      className="mt-3 w-full rounded-md bg-violet-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:opacity-60"
+                                    >
+                                      {bookBusyId === order.id
+                                        ? bookQuoteByOrderId[order.id]?.finalPrice != null
+                                          ? "Placing…"
+                                          : "Getting quote…"
+                                        : bookQuoteByOrderId[order.id]?.finalPrice != null
+                                          ? "Place Delivery Order"
+                                          : "Get quote"}
+                                    </button>
+                                  ) : null}
+                                  {bookMessageByOrderId[order.id]?.kind === "err" ? (
+                                    <p className="mt-2 text-xs text-red-600">
+                                      {bookMessageByOrderId[order.id]?.text}
+                                    </p>
+                                  ) : null}
                                 </div>
                               </div>
 

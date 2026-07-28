@@ -1,16 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { fetchPublicProductJson } from "@/lib/backendFetch";
-import { postCodCheckout, postEsewaInit, postKhaltiInit, type EsewaInitResponse } from "@/lib/checkoutClient";
+import {
+  fetchMaskedBuyerProfile,
+  postCodCheckout,
+  postEsewaInit,
+  postExpressCheckout,
+  postKhaltiInit,
+  type EsewaInitResponse,
+  type MaskedBuyerProfile,
+} from "@/lib/checkoutClient";
 import {
   loadCheckoutBuyerDetails,
   saveCheckoutBuyerDetails,
 } from "@/lib/checkoutBuyerDetails";
 import { formatStorefrontPrice, isNepalRupeesCurrency } from "@/lib/formatNpr";
 import { KinmelBrandLink, KinmelLogoMark } from "@/components/KinmelLogo";
+import { MoreFromSellerRail } from "@/components/storefront/MoreFromSellerRail";
 
 function persistEsewaCheckoutContext(productId: string, transactionUuid: string) {
   try {
@@ -41,7 +50,7 @@ function submitEsewaPaymentGateway(res: EsewaInitResponse) {
   form.submit();
 }
 
-const COD_FLAT_FEE = 35;
+const COD_FLAT_FEE = 0;
 
 type CheckoutPhase = "review" | "details" | "payment";
 
@@ -237,11 +246,16 @@ function QuantityStepper({
   );
 }
 
-export default function PublicBuyPage() {
+function BuyProductContent() {
   const router = useRouter();
   const params = useParams();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const productId = typeof params?.productId === "string" ? params.productId : "";
+  const buyerKey = (searchParams.get("bk") || "").trim();
+  const forceEdit = searchParams.get("edit") === "1";
+  const fromLive = searchParams.get("from") === "live";
+  const sellerParam = (searchParams.get("seller") || "").trim().replace(/^@+/, "");
   const fetchSeqRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
@@ -271,6 +285,9 @@ export default function PublicBuyPage() {
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  /** Saved delivery via buyer_key — pay without sending full PII from the browser. */
+  const [expressMode, setExpressMode] = useState(false);
+  const [maskedProfile, setMaskedProfile] = useState<MaskedBuyerProfile | null>(null);
 
   useEffect(() => {
     const saved = loadCheckoutBuyerDetails();
@@ -281,6 +298,29 @@ export default function PublicBuyPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!buyerKey || forceEdit) {
+      setExpressMode(false);
+      setMaskedProfile(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const profile = await fetchMaskedBuyerProfile(buyerKey);
+        if (cancelled) return;
+        setMaskedProfile(profile);
+        setExpressMode(profile.has_profile === true);
+      } catch {
+        if (cancelled) return;
+        setMaskedProfile(null);
+        setExpressMode(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [buyerKey, forceEdit]);
   useEffect(() => {
     if (!productId) {
       setLoading(false);
@@ -343,6 +383,7 @@ export default function PublicBuyPage() {
     address: (override?.address ?? address).trim(),
     city: "",
     quantity,
+    ...(buyerKey ? { buyer_key: buyerKey } : {}),
   });
 
   const persistBuyerDetails = (
@@ -405,10 +446,18 @@ export default function PublicBuyPage() {
     return true;
   };
 
-  const validateDetails = () => validateDetailsValues(resolveBuyerDetails());
+  const switchToEditDetails = () => {
+    setExpressMode(false);
+    setFormError(null);
+    setPhase("details");
+  };
 
   const goToDetails = () => {
     setFormError(null);
+    if (expressMode) {
+      setPhase("payment");
+      return;
+    }
     setPhase("details");
   };
 
@@ -418,19 +467,73 @@ export default function PublicBuyPage() {
       : resolveBuyerDetails();
     if (!validateDetailsValues(values)) return;
     persistBuyerDetails(values);
+    setExpressMode(false);
     setPhase("payment");
   };
 
   const onContinueCheckout = async () => {
     setFormError(null);
-    const values = resolveBuyerDetails();
-    if (!validateDetailsValues(values)) {
-      setPhase("details");
-      return;
-    }
-    persistBuyerDetails(values);
     setBusy(true);
     try {
+      if (expressMode && buyerKey) {
+        const res = await postExpressCheckout({
+          product_id: productId,
+          buyer_key: buyerKey,
+          payment_method: paymentMethod,
+          quantity,
+        });
+        if (paymentMethod === "cod") {
+          const bid = res.business_id || product?.business_id || "";
+          const sp = new URLSearchParams({
+            payment: "cod",
+            order_id: String(res.order_id || ""),
+            total: String(res.total ?? ""),
+            currency: String(res.currency || "NPR"),
+            product_id: productId,
+            quantity: String(res.quantity ?? quantity),
+          });
+          if (bid) sp.set("business_id", bid);
+          router.push(`/buy/thank-you?${sp.toString()}`);
+          setBusy(false);
+          return;
+        }
+        if (paymentMethod === "khalti") {
+          if (!res.payment_url || !res.pidx) {
+            throw new Error("Khalti payment URL missing.");
+          }
+          try {
+            if (typeof window !== "undefined") {
+              window.sessionStorage.setItem("khalti_pidx", res.pidx);
+            }
+          } catch {
+            /* ignore */
+          }
+          window.location.href = res.payment_url;
+          return;
+        }
+        if (!res.payment_url || !res.form_fields || !res.transaction_uuid) {
+          throw new Error("eSewa payment form missing.");
+        }
+        persistEsewaCheckoutContext(productId, res.transaction_uuid);
+        submitEsewaPaymentGateway({
+          ok: true,
+          order_id: res.order_id ?? null,
+          checkout_session_id: res.checkout_session_id,
+          payment_method: "esewa",
+          payment_url: res.payment_url,
+          form_fields: res.form_fields,
+          transaction_uuid: res.transaction_uuid,
+        });
+        return;
+      }
+
+      const values = resolveBuyerDetails();
+      if (!validateDetailsValues(values)) {
+        setPhase("details");
+        setBusy(false);
+        return;
+      }
+      persistBuyerDetails(values);
       const payload = payloadBase(values);
       if (paymentMethod === "cod") {
         const res = await postCodCheckout(payload);
@@ -548,6 +651,12 @@ export default function PublicBuyPage() {
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pb-6 pt-3">
         <Stepper phase={phase} />
 
+        {fromLive ? (
+          <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-center text-xs font-medium text-emerald-800">
+            You&apos;re buying what&apos;s on live right now
+          </p>
+        ) : null}
+
         {isSoldOut ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-10 text-center">
             <p className="text-xl font-bold text-red-700">Already Sold out!</p>
@@ -656,7 +765,7 @@ export default function PublicBuyPage() {
                 >
                   <span className="inline-flex items-center gap-2">
                     <IconCart />
-                    Continue to Cart
+                    {expressMode ? "Continue to payment" : "Continue to Cart"}
                   </span>
                   <IconChevron />
                 </button>
@@ -784,14 +893,31 @@ export default function PublicBuyPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      if (expressMode) {
+                        switchToEditDetails();
+                        return;
+                      }
                       setPhase("details");
                       setFormError(null);
                     }}
                     className={`text-sm font-medium ${accent.link} underline-offset-2 hover:underline`}
                   >
-                    Edit details
+                    {expressMode ? "Change address" : "Edit details"}
                   </button>
                 </div>
+
+                {expressMode && maskedProfile?.has_profile ? (
+                  <div className="mb-3 rounded-2xl border border-violet-100 bg-violet-50/80 px-3.5 py-3 text-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
+                      Delivering to
+                    </p>
+                    <p className="mt-1 font-semibold text-zinc-900">
+                      {maskedProfile.customer_name || "Saved name"}
+                    </p>
+                    <p className="mt-0.5 text-zinc-600">{maskedProfile.phone}</p>
+                    <p className="mt-0.5 text-zinc-600">{maskedProfile.address}</p>
+                  </div>
+                ) : null}
 
                 <div className="flex flex-col gap-3" role="radiogroup" aria-label="Payment method">
                   <button
@@ -894,7 +1020,9 @@ export default function PublicBuyPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold text-zinc-900">Cash on delivery</p>
                         <p className="text-[11px] text-zinc-500">
-                          Pay on arrival · +{formatStorefrontPrice(COD_FLAT_FEE, priceCcy)} fee
+                          {COD_FLAT_FEE > 0
+                            ? `Pay on arrival · +${formatStorefrontPrice(COD_FLAT_FEE, priceCcy)} fee`
+                            : "Pay on arrival"}
                         </p>
                       </div>
                       <p className={`shrink-0 text-base font-bold ${accent.text}`}>
@@ -916,7 +1044,7 @@ export default function PublicBuyPage() {
                         {formatStorefrontPrice(esewaLineTotal, priceCcy)}
                       </span>
                     </div>
-                    {paymentMethod === "cod" ? (
+                    {paymentMethod === "cod" && COD_FLAT_FEE > 0 ? (
                       <div className="flex justify-between text-zinc-600">
                         <span>COD fee</span>
                         <span className="font-medium text-zinc-800">
@@ -951,12 +1079,26 @@ export default function PublicBuyPage() {
                     ? "You will be redirected to eSewa to complete payment"
                     : paymentMethod === "khalti"
                       ? "You will be redirected to Khalti to complete payment"
-                      : `You'll pay when your order arrives (includes a ${formatStorefrontPrice(COD_FLAT_FEE, priceCcy)} COD fee)`}
+                      : COD_FLAT_FEE > 0
+                        ? `You'll pay when your order arrives (includes a ${formatStorefrontPrice(COD_FLAT_FEE, priceCcy)} COD fee)`
+                        : "You'll pay when your order arrives"}
                 </p>
               </section>
             </div>
           </div>
         )}
+
+        {product?.business_id ? (
+          <MoreFromSellerRail
+            businessId={product.business_id}
+            excludeProductId={productId}
+            sellerName={
+              sellerLine ??
+              (sellerParam ? `@${sellerParam}` : product.seller?.business_name || "this seller")
+            }
+            sellerUsername={sellerParam || product.seller?.instagram_username}
+          />
+        ) : null}
       </main>
 
       <footer className="mt-auto border-t border-zinc-200 bg-white">
@@ -971,5 +1113,19 @@ export default function PublicBuyPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function PublicBuyPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-full items-center justify-center bg-zinc-50 p-8">
+          <p className="text-zinc-500">Loading…</p>
+        </div>
+      }
+    >
+      <BuyProductContent />
+    </Suspense>
   );
 }

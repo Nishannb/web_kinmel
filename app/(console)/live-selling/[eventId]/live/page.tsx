@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAppState } from "@/components/AppProvider";
 import { CreateLiveProductModal } from "@/components/live/CreateLiveProductModal";
+import { LiveShopLinkCopy } from "@/components/live/LiveShopLinkCopy";
 import {
   CalendarIcon,
   ChatBubbleIcon,
@@ -84,6 +85,7 @@ export default function LiveWorkspacePage() {
     updateEventProductBuyCode,
     updateCatalogProductStock,
     catalogProducts,
+    instagramAccounts,
   } = useAppState();
   const event = getEventById(eventId);
   const overlaySync = useOverlaySync(
@@ -428,6 +430,9 @@ export default function LiveWorkspacePage() {
 
   const selectedOverlayProductId = overlaySync.settings.visibleProductIds[0] ?? null;
 
+  const instagramShopUsername =
+    instagramAccounts.find((a) => (a.username || "").trim())?.username ?? null;
+
   const statusLabel =
     event?.status === "live"
       ? "live"
@@ -485,6 +490,9 @@ export default function LiveWorkspacePage() {
             {/* Products card */}
             <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${cardClass}`}>
               <div className="shrink-0 px-4 py-4 sm:px-5">
+                <LiveShopLinkCopy username={instagramShopUsername} />
+              </div>
+              <div className="shrink-0 border-t border-violet-50 px-4 py-4 sm:px-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <h2 className="text-lg font-bold text-zinc-900">Products</h2>

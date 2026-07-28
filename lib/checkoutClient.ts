@@ -9,12 +9,30 @@ export type CodCheckoutPayload = {
   city?: string;
   /** Number of units (1–99). Defaults to 1 server-side if omitted. */
   quantity?: number;
+  /** Opaque key from DM link — links delivery profile to Instagram user after checkout. */
+  buyer_key?: string;
+};
+
+export type ExpressCheckoutPayload = {
+  product_id: string;
+  buyer_key: string;
+  payment_method: "cod" | "esewa" | "khalti";
+  quantity?: number;
+};
+
+export type MaskedBuyerProfile = {
+  ok: boolean;
+  has_profile: boolean;
+  buyer_key?: string;
+  customer_name?: string;
+  phone?: string;
+  address?: string;
 };
 
 /** Ensures quantity is a 1–99 integer and duplicates `qty` for older API proxies. */
 function checkoutJsonBody(payload: CodCheckoutPayload): string {
   const q = Math.min(99, Math.max(1, Math.floor(Number(payload.quantity ?? 1))));
-  return JSON.stringify({
+  const body: Record<string, unknown> = {
     product_id: payload.product_id,
     customer_name: payload.customer_name,
     phone: payload.phone,
@@ -22,7 +40,91 @@ function checkoutJsonBody(payload: CodCheckoutPayload): string {
     city: payload.city ?? "",
     quantity: q,
     qty: q,
+  };
+  const bk = (payload.buyer_key || "").trim();
+  if (bk) body.buyer_key = bk;
+  return JSON.stringify(body);
+}
+
+export async function fetchMaskedBuyerProfile(buyerKey: string): Promise<MaskedBuyerProfile> {
+  const key = buyerKey.trim();
+  const url = `${getBackendHttpBase()}/public/buyer/${encodeURIComponent(key)}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      ...backendRequestHeaders(),
+    },
   });
+  const raw = await res.text();
+  let data: unknown;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    throw new Error("Buyer profile returned non-JSON.");
+  }
+  if (!res.ok) {
+    const err = data as { error?: string };
+    throw new Error(err?.error || `Buyer profile failed (${res.status})`);
+  }
+  return data as MaskedBuyerProfile;
+}
+
+export async function postExpressCheckout(payload: ExpressCheckoutPayload): Promise<{
+  ok: boolean;
+  order_id?: string | null;
+  business_id?: string;
+  total?: number;
+  currency?: string;
+  quantity?: number;
+  message?: string;
+  payment_url?: string;
+  form_fields?: Record<string, string>;
+  transaction_uuid?: string;
+  pidx?: string;
+  checkout_session_id?: string | null;
+  payment_method?: string;
+}> {
+  const q = Math.min(99, Math.max(1, Math.floor(Number(payload.quantity ?? 1))));
+  const url = `${getBackendHttpBase()}/public/checkout/express`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      ...backendRequestHeaders({ "Content-Type": "application/json" }),
+    },
+    body: JSON.stringify({
+      product_id: payload.product_id,
+      buyer_key: payload.buyer_key.trim(),
+      payment_method: payload.payment_method,
+      quantity: q,
+      qty: q,
+    }),
+  });
+  const raw = await res.text();
+  let data: unknown;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    throw new Error("Express checkout returned non-JSON.");
+  }
+  if (!res.ok) {
+    const err = data as { error?: string };
+    throw new Error(err?.error || `Express checkout failed (${res.status})`);
+  }
+  return data as {
+    ok: boolean;
+    order_id?: string | null;
+    business_id?: string;
+    total?: number;
+    currency?: string;
+    quantity?: number;
+    message?: string;
+    payment_url?: string;
+    form_fields?: Record<string, string>;
+    transaction_uuid?: string;
+    pidx?: string;
+    checkout_session_id?: string | null;
+    payment_method?: string;
+  };
 }
 
 export async function postCodCheckout(

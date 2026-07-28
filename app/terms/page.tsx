@@ -10,12 +10,21 @@ export const metadata: Metadata = buildPageMetadata({
 
 export default function TermsPage() {
   return (
-    <LegalPageShell title="Terms of Service" updated="June 13, 2026">
+    <LegalPageShell title="Terms of Service" updated="July 21, 2026">
       <section className="space-y-3">
         <h2>Agreement</h2>
         <p>
           By creating an account or using the Kinmel mobile app or website, you agree to these Terms
           of Service. If you do not agree, do not use Kinmel.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2>Sellers and buyers</h2>
+        <p>
+          In these Terms, <strong>sellers</strong> are people or businesses who use the Kinmel app
+          and website to list and sell products online. <strong>Buyers</strong> are people who
+          purchase from sellers through <strong>kinmel.shop</strong> and the Kinmel app.
         </p>
       </section>
 
@@ -26,7 +35,8 @@ export default function TermsPage() {
           the Kinmel iOS app to go live or record shoppable video with product overlays, manage a
           catalog on the web, and send buyers to a hosted checkout page. Viewers comment buy codes on
           Instagram; Kinmel may respond with checkout links on the seller&apos;s behalf when
-          connected and authorized.
+          connected and authorized. Kinmel also partners with logistics providers so sellers can use
+          in-house logistics integration to book and manage deliveries.
         </p>
       </section>
 
@@ -70,12 +80,50 @@ export default function TermsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2>Fees</h2>
+        <h2>Payments, fees &amp; sales</h2>
         <p>
-          Kinmel is free to use for catalog, events, overlays, and checkout links. We charge{" "}
-          <strong>4% of each sale</strong> processed through Kinmel, unless we notify you of a
-          different rate in advance. Pricing may change; we will give reasonable notice before changes
-          affect your account.
+          Kinmel processes buyer payments through third-party payment providers. Kinmel charges a
+          sales commission of <strong>2.9% to 8%</strong> on each qualifying sale, unless we notify
+          you of a different rate in advance. Pricing may change; we will give reasonable notice
+          before changes affect your account.
+        </p>
+        <p>
+          An order is counted as a <strong>sale</strong> only when delivery to the buyer has been
+          completed successfully. Orders that are not yet fulfilled, or that are still in the
+          delivery process, are not considered sales yet.
+        </p>
+        <p>
+          Payment settlement to sellers may take up to <strong>one week</strong>. In some cases,
+          settlement may take longer than one week.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2>Logistics</h2>
+        <p>
+          Kinmel partners with logistics providers to offer in-house logistics integration. When a
+          seller books delivery through Kinmel, buyer information required for shipping is shared
+          with the logistics provider so the order can be delivered.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2>Buyer privacy &amp; data use</h2>
+        <p>
+          Kinmel treats customer data with the utmost importance. Buyer personal data such as phone
+          number and full address is abstracted from sellers to protect buyer privacy. That data may
+          be shared with the logistics provider when the seller books delivery.
+        </p>
+        <p>
+          Seller and buyer information may be shared with third parties such as logistics providers
+          and payment providers as required to operate checkout, payments, and delivery. By using
+          Kinmel, you acknowledge that Kinmel owns the rights to use platform data in whatever
+          fashion it deems necessary to operate, improve, secure, and enforce the service, subject
+          to applicable law and our{" "}
+          <a href="/privacy-policy" className="font-medium text-violet-700 hover:underline">
+            Privacy Policy
+          </a>
+          .
         </p>
       </section>
 
@@ -104,9 +152,10 @@ export default function TermsPage() {
         <h2>Disclaimer</h2>
         <p>
           Kinmel is provided &quot;as is&quot; and &quot;as available.&quot; We do not guarantee
-          uninterrupted live streaming, Instagram API availability, or specific sales results. To the
-          fullest extent permitted by law, we disclaim warranties of merchantability, fitness for a
-          particular purpose, and non-infringement.
+          uninterrupted live streaming, Instagram API availability, payment or logistics partner
+          availability, or specific sales results. To the fullest extent permitted by law, we
+          disclaim warranties of merchantability, fitness for a particular purpose, and
+          non-infringement.
         </p>
       </section>
 
@@ -115,10 +164,10 @@ export default function TermsPage() {
         <p>
           To the fullest extent permitted by law, Naman Technologies Private Limited and Kinmel are
           not liable for indirect, incidental, special, or consequential damages, lost profits, or
-          loss of data arising from your use of the service, Instagram/Meta outages, or buyer
-          disputes. Our total liability for any claim related to the service is limited to the fees
-          you paid to Kinmel in the twelve (12) months before the claim, or NPR 10,000 if no fees
-          were paid, whichever is greater.
+          loss of data arising from your use of the service, Instagram/Meta outages, payment or
+          logistics partner issues, or buyer disputes. Our total liability for any claim related to
+          the service is limited to the fees you paid to Kinmel in the twelve (12) months before the
+          claim, or NPR 10,000 if no fees were paid, whichever is greater.
         </p>
       </section>
 
@@ -154,6 +203,29 @@ export default function TermsPage() {
 
       <section className="space-y-3">
         <h2>Contact</h2>
+        <p>
+          Kinmel is the product operated by <strong>Naman Technologies Private Limited</strong>,
+          registered in Nepal.
+        </p>
+        <p>
+          Address: Pokhara Metropolitan City Ward No. 17, Balodaya Marg, Kaski, Gandaki, Nepal
+        </p>
+        <p>
+          Phone:{" "}
+          <a
+            href="tel:+9779714535269"
+            className="font-medium text-violet-700 hover:underline"
+          >
+            +977 9714535269
+          </a>
+          ,{" "}
+          <a
+            href="tel:+9779769498715"
+            className="font-medium text-violet-700 hover:underline"
+          >
+            +977 9769498715
+          </a>
+        </p>
         <p>
           Questions about these terms:{" "}
           <a href="mailto:nishan@kinmel.shop" className="font-medium text-violet-700 hover:underline">

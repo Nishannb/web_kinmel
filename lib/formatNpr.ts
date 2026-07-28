@@ -1,5 +1,5 @@
 /**
- * Storefront money formatting: NPR-like currencies use the रु prefix; other ISO codes use Intl.
+ * Storefront money formatting: NPR-like currencies use the Rs. prefix; other ISO codes use Intl.
  * Wallet eligibility uses isNepalRupeesCurrency (see buy checkout).
  */
 
@@ -17,14 +17,14 @@ export function isNepalRupeesCurrency(raw: string | null | undefined): boolean {
     .trim();
   if (!s) return true;
   const upper = s.toUpperCase();
-  if (upper === "NPR" || upper === "NRS") return true;
+  if (upper === "NPR" || upper === "NRS" || upper === "RS" || upper === "RS.") return true;
   const compact = s.replace(/\s+/g, "");
   return compact === DEVANAGARI_RU_SHORT || compact === DEVANAGARI_RU_LONG;
 }
 
 /**
  * Format a money amount using the product/order currency from the database.
- * NPR-like codes use the storefront रु prefix; other ISO codes use Intl currency style.
+ * NPR-like codes use the storefront Rs. prefix; other ISO codes use Intl currency style.
  */
 export function formatStorefrontPrice(amount: number, currency?: string | null): string {
   const n = Number(amount);
@@ -34,7 +34,7 @@ export function formatStorefrontPrice(amount: number, currency?: string | null):
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value);
-    return `रु ${formatted}`;
+    return `Rs. ${formatted}`;
   }
   const code = String(currency ?? "")
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
@@ -45,7 +45,7 @@ export function formatStorefrontPrice(amount: number, currency?: string | null):
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value);
-    return `रु ${formatted}`;
+    return `Rs. ${formatted}`;
   }
   try {
     return new Intl.NumberFormat("en-US", {

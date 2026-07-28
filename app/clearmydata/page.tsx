@@ -96,6 +96,39 @@ export default function ClearMyDataPage() {
           for details on what we collect and how we use it.
         </p>
       </section>
+
+      <section className="space-y-3">
+        <h2>Contact</h2>
+        <p>
+          Kinmel is the product operated by <strong>Naman Technologies Private Limited</strong>,
+          registered in Nepal.
+        </p>
+        <p>
+          Address: Pokhara Metropolitan City Ward No. 17, Balodaya Marg, Kaski, Gandaki, Nepal
+        </p>
+        <p>
+          Phone:{" "}
+          <a
+            href="tel:+9779714535269"
+            className="font-medium text-violet-700 hover:underline"
+          >
+            +977 9714535269
+          </a>
+          ,{" "}
+          <a
+            href="tel:+9779769498715"
+            className="font-medium text-violet-700 hover:underline"
+          >
+            +977 9769498715
+          </a>
+        </p>
+        <p>
+          Data deletion requests:{" "}
+          <a href="mailto:nishan@kinmel.shop" className="font-medium text-violet-700 hover:underline">
+            nishan@kinmel.shop
+          </a>
+        </p>
+      </section>
     </LegalPageShell>
   );
 }

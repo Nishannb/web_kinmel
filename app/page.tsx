@@ -260,14 +260,14 @@ export default function HomePage() {
             </p>
             <div className="space-y-1">
               <p className="font-medium text-zinc-800">
-                Kinmel is developed by Naman Technologies Private Limited
+                Kinmel is developed by Naman Technologies Private Limited, registered in Nepal
               </p>
             </div>
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-widest text-violet-600">
                 Location &amp; Contact
               </p>
-              <p>Ward No. 17, Balodaya Marg, Pokhara 33700</p>
+              <p>Pokhara Metropolitan City Ward No. 17, Balodaya Marg, Kaski, Gandaki, Nepal</p>
               <p>
                 <a
                   href="tel:+9779766044502"

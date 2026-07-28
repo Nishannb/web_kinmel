@@ -28,10 +28,17 @@ export function LegalPageShell({
           <header className="border-b border-zinc-100 pb-6">
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">{title}</h1>
             <p className="mt-2 text-sm text-zinc-500">Last updated: {updated}</p>
-            <p className="mt-3 text-sm text-zinc-600">
-              Kinmel is operated by <strong>Naman Technologies Private Limited</strong>, Pokhara,
-              Nepal.
-            </p>
+            <div className="mt-3 space-y-1 text-sm text-zinc-600">
+              <p>
+                <strong>Kinmel</strong> is operated by{" "}
+                <strong>Naman Technologies Private Limited</strong>, registered in Nepal.
+              </p>
+              <p>
+                Address: Pokhara Metropolitan City Ward No. 17, Balodaya Marg, Kaski, Gandaki,
+                Nepal.
+              </p>
+              <p>Phone: +977 9714535269, +977 9769498715.</p>
+            </div>
           </header>
 
           <div className="legal-prose mt-6 space-y-6 text-sm leading-relaxed text-zinc-700 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-zinc-900 [&_li]:ml-4 [&_li]:list-disc [&_ul]:space-y-1.5">

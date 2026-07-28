@@ -14,6 +14,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { KinmelBrandLink } from "@/components/KinmelLogo";
 import {
+  EarningsNavIcon,
   LiveSellingNavIcon,
   LogoutIcon,
   OrdersNavIcon,
@@ -299,6 +300,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onClick={closeMenu}
         icon={
           <OrdersNavIcon className={isActive("/orders") ? "text-violet-600" : "text-zinc-400"} />
+        }
+      />
+      <NavItem
+        href="/earnings"
+        label="Earnings"
+        compact={compact}
+        active={isActive("/earnings")}
+        onClick={closeMenu}
+        icon={
+          <EarningsNavIcon
+            className={isActive("/earnings") ? "text-violet-600" : "text-zinc-400"}
+          />
         }
       />
     </>
