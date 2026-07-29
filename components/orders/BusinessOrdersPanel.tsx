@@ -45,6 +45,8 @@ type OrderItemRow = {
   unit_price_snapshot: number;
   quantity: number;
   line_total: number;
+  variant_id?: string | null;
+  variant_label_snapshot?: string | null;
   /** Joined from `products` for catalog image (null if product deleted or no image). */
   products?: { image_url: string | null } | { image_url: string | null }[] | null;
 };
@@ -541,7 +543,13 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                     items.length === 0
                       ? "—"
                       : items
-                          .map((i) => `${i.product_name_snapshot} ×${i.quantity}`)
+                          .map((i) => {
+                            const size = (i.variant_label_snapshot || "").trim();
+                            const name = size
+                              ? `${i.product_name_snapshot} (${size})`
+                              : i.product_name_snapshot;
+                            return `${name} ×${i.quantity}`;
+                          })
                           .join(", ");
                   const sessionTitle =
                     order.live_sessions &&
@@ -937,6 +945,9 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                                             <div className="min-w-0 flex-1">
                                               <p className="break-words font-medium text-zinc-900">
                                                 {line.product_name_snapshot}
+                                                {(line.variant_label_snapshot || "").trim()
+                                                  ? ` · Size ${(line.variant_label_snapshot || "").trim()}`
+                                                  : ""}
                                               </p>
                                               <p className="mt-1 text-xs text-zinc-600">
                                                 Qty {line.quantity} ·{" "}
@@ -977,6 +988,9 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                                               </td>
                                               <td className="break-words py-2 pr-3 font-medium text-zinc-900">
                                                 {line.product_name_snapshot}
+                                                {(line.variant_label_snapshot || "").trim()
+                                                  ? ` · Size ${(line.variant_label_snapshot || "").trim()}`
+                                                  : ""}
                                               </td>
                                               <td className="py-2 pr-3 text-xs tabular-nums">
                                                 {formatStorefrontPrice(

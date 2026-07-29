@@ -39,9 +39,20 @@ type CreateProductInput = {
   price: number;
   buyCode: string;
   stockQuantity: number;
+  /** Empty = unsized product (uses stockQuantity). */
+  variants?: Array<{ label: string; stockQuantity: number }>;
   /** Required; uploaded to R2 before insert. */
   imageFile: File;
   productUrl?: string;
+};
+
+type UpdateCatalogProductInput = {
+  name: string;
+  price: number;
+  buyCode: string;
+  stockQuantity: number;
+  variants?: Array<{ label: string; stockQuantity: number }>;
+  imageFile?: File | null;
 };
 
 type AppContextValue = {
@@ -59,8 +70,16 @@ type AppContextValue = {
   deleteEvent: (eventId: string) => Promise<void>;
   getEventById: (eventId: string) => LiveEvent | undefined;
   createCatalogProduct: (input: CreateProductInput) => Promise<string>;
+  updateCatalogProduct: (
+    productId: string,
+    input: UpdateCatalogProductInput
+  ) => Promise<void>;
   deleteCatalogProduct: (productId: string) => Promise<void>;
   updateCatalogProductStock: (productId: string, stockQuantity: number) => Promise<void>;
+  replaceCatalogProductVariants: (
+    productId: string,
+    variants: Array<{ label: string; stockQuantity: number }>
+  ) => Promise<void>;
   addProductToEvent: (
     eventId: string,
     input: CreateProductInput & { buyCode: string }
@@ -164,8 +183,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       buyCode: row.sku ? String(row.sku) : undefined,
       stockQuantity:
         row.stock_quantity == null ? null : Number(row.stock_quantity ?? 0),
+      variants: [],
       catalogUpdatedAt: row.updated_at ? String(row.updated_at) : undefined,
     }));
+
+    if (nextCatalogProducts.length > 0) {
+      const variantsRes = await supabase
+        .from("product_variants")
+        .select("id,product_id,label,stock_quantity,sort_order")
+        .in(
+          "product_id",
+          nextCatalogProducts.map((p) => p.id)
+        )
+        .order("sort_order", { ascending: true });
+      if (!variantsRes.error && variantsRes.data) {
+        const byProduct = new Map<string, Product["variants"]>();
+        for (const row of variantsRes.data) {
+          const pid = String(row.product_id);
+          const list = byProduct.get(pid) ?? [];
+          list.push({
+            id: String(row.id),
+            label: String(row.label ?? "").trim(),
+            stockQuantity: Math.max(0, Number(row.stock_quantity ?? 0)),
+            sortOrder: Number(row.sort_order ?? 0),
+          });
+          byProduct.set(pid, list);
+        }
+        for (const product of nextCatalogProducts) {
+          product.variants = byProduct.get(product.id) ?? [];
+          if (product.variants.length > 0) {
+            product.stockQuantity = product.variants.reduce(
+              (sum, v) => sum + v.stockQuantity,
+              0
+            );
+          }
+        }
+      }
+    }
     setCatalogProducts(nextCatalogProducts);
 
     const sessions = sessionsRes.data ?? [];
@@ -472,6 +526,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [buildDefaultProductUrl, businessId, events, isReady, refreshData]
   );
 
+  const replaceProductVariantsRows = useCallback(
+    async (
+      productId: string,
+      variants: Array<{ label: string; stockQuantity: number }>
+    ) => {
+      const cleaned = variants
+        .map((v, index) => ({
+          label: v.label.trim(),
+          stock_quantity: Math.max(0, Math.floor(v.stockQuantity)),
+          sort_order: index,
+        }))
+        .filter((v) => v.label.length > 0);
+
+      const delRes = await supabase
+        .from("product_variants")
+        .delete()
+        .eq("product_id", productId);
+      if (delRes.error) throw delRes.error;
+
+      if (cleaned.length === 0) {
+        return;
+      }
+
+      const insRes = await supabase.from("product_variants").insert(
+        cleaned.map((v) => ({
+          product_id: productId,
+          label: v.label,
+          stock_quantity: v.stock_quantity,
+          sort_order: v.sort_order,
+        }))
+      );
+      if (insRes.error) throw insRes.error;
+
+      const sum = cleaned.reduce((acc, v) => acc + v.stock_quantity, 0);
+      const stockRes = await supabase
+        .from("products")
+        .update({ stock_quantity: sum })
+        .eq("id", productId);
+      if (stockRes.error) throw stockRes.error;
+    },
+    []
+  );
+
   const createCatalogProduct = useCallback(
     async (input: CreateProductInput) => {
       if (!isReady) return "";
@@ -482,7 +579,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!input.imageFile || input.imageFile.size === 0) {
         throw new Error("A product image is required.");
       }
-      if (!Number.isFinite(input.stockQuantity) || input.stockQuantity < 0) {
+      const variantRows = (input.variants ?? [])
+        .map((v) => ({
+          label: v.label.trim(),
+          stockQuantity: Math.max(0, Math.floor(v.stockQuantity)),
+        }))
+        .filter((v) => v.label.length > 0);
+      const stockQuantity =
+        variantRows.length > 0
+          ? variantRows.reduce((sum, v) => sum + v.stockQuantity, 0)
+          : input.stockQuantity;
+      if (!Number.isFinite(stockQuantity) || stockQuantity < 0) {
         throw new Error("Available quantity must be 0 or more.");
       }
       const imageUrl = await uploadProductImageToR2(
@@ -500,7 +607,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           image_url: imageUrl,
           product_url: null,
           sku: buyCode,
-          stock_quantity: Math.floor(input.stockQuantity),
+          stock_quantity: Math.floor(stockQuantity),
         })
         .select("id")
         .single();
@@ -521,10 +628,78 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           throw updateRes.error;
         }
       }
+      if (variantRows.length > 0) {
+        await replaceProductVariantsRows(productId, variantRows);
+      }
       await refreshData();
       return productId;
     },
-    [buildDefaultProductUrl, businessId, isReady, refreshData]
+    [buildDefaultProductUrl, businessId, isReady, refreshData, replaceProductVariantsRows]
+  );
+
+  const updateCatalogProduct = useCallback(
+    async (productId: string, input: UpdateCatalogProductInput) => {
+      if (!isReady) return;
+      if (!businessId) {
+        throw new Error("No business found for this user.");
+      }
+      const buyCode = requireValidBuyCode(input.buyCode);
+      const variantRows = (input.variants ?? [])
+        .map((v) => ({
+          label: v.label.trim(),
+          stockQuantity: Math.max(0, Math.floor(v.stockQuantity)),
+        }))
+        .filter((v) => v.label.length > 0);
+      const stockQuantity =
+        variantRows.length > 0
+          ? variantRows.reduce((sum, v) => sum + v.stockQuantity, 0)
+          : input.stockQuantity;
+      if (!Number.isFinite(stockQuantity) || stockQuantity < 0) {
+        throw new Error("Available quantity must be 0 or more.");
+      }
+
+      const patch: Record<string, unknown> = {
+        name: input.name.trim(),
+        price: input.price,
+        sku: buyCode,
+        stock_quantity: Math.floor(stockQuantity),
+      };
+      if (input.imageFile && input.imageFile.size > 0) {
+        patch.image_url = await uploadProductImageToR2(
+          supabase,
+          businessId,
+          input.imageFile
+        );
+      }
+      const updateRes = await supabase
+        .from("products")
+        .update(patch)
+        .eq("id", productId);
+      if (updateRes.error) {
+        if (updateRes.error.code === "23505") {
+          throw new Error("That buy code is already used by another product.");
+        }
+        throw updateRes.error;
+      }
+      await replaceProductVariantsRows(productId, variantRows);
+      await refreshData();
+    },
+    [businessId, isReady, refreshData, replaceProductVariantsRows]
+  );
+
+  const replaceCatalogProductVariants = useCallback(
+    async (
+      productId: string,
+      variants: Array<{ label: string; stockQuantity: number }>
+    ) => {
+      if (!isReady) return;
+      await replaceProductVariantsRows(productId, variants);
+      if (variants.length === 0) {
+        // Unsized — leave products.stock_quantity alone; caller should set it.
+      }
+      await refreshData();
+    },
+    [isReady, refreshData, replaceProductVariantsRows]
   );
 
   const updateCatalogProductStock = useCallback(
@@ -532,6 +707,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!isReady) return;
       if (!Number.isFinite(stockQuantity) || stockQuantity < 0) {
         throw new Error("Available quantity must be 0 or more.");
+      }
+      const product = catalogProducts.find((p) => p.id === productId);
+      if (product?.variants && product.variants.length > 0) {
+        throw new Error("This product has sizes — edit stock per size instead.");
       }
       const { error } = await supabase
         .from("products")
@@ -542,7 +721,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       await refreshData();
     },
-    [isReady, refreshData]
+    [catalogProducts, isReady, refreshData]
   );
 
   const deleteCatalogProduct = useCallback(
@@ -714,8 +893,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deleteEvent,
       getEventById,
       createCatalogProduct,
+      updateCatalogProduct,
       deleteCatalogProduct,
       updateCatalogProductStock,
+      replaceCatalogProductVariants,
       addProductToEvent,
       addExistingProductToEvent,
       ensureProductOnEvent,
@@ -734,8 +915,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       catalogProducts,
       getEventById,
       createCatalogProduct,
+      updateCatalogProduct,
       deleteCatalogProduct,
       updateCatalogProductStock,
+      replaceCatalogProductVariants,
       addExistingProductToEvent,
       ensureProductOnEvent,
       updateEventProductDiscountPercent,

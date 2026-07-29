@@ -70,6 +70,9 @@ export async function fetchPublicProductJson(productId: string): Promise<{
     image_url: string;
     product_url: string;
     business_id?: string;
+    stock_quantity?: number | null;
+    sold_out?: boolean;
+    variants?: Array<{ id: string; label: string; stock_quantity: number }>;
     seller?: {
       business_name?: string;
       instagram_username?: string;
@@ -104,6 +107,9 @@ export async function fetchPublicProductJson(productId: string): Promise<{
       image_url: string;
       product_url: string;
       business_id?: string;
+      stock_quantity?: number | null;
+      sold_out?: boolean;
+      variants?: Array<{ id: string; label: string; stock_quantity: number }>;
       seller?: {
         business_name?: string;
         instagram_username?: string;

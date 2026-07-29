@@ -225,6 +225,8 @@ export type SellerOrderItem = {
   unit_price_snapshot: number;
   quantity: number;
   line_total: number;
+  variant_id?: string | null;
+  variant_label_snapshot?: string | null;
   products?: { image_url: string | null } | { image_url: string | null }[] | null;
 };
 

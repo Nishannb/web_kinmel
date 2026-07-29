@@ -271,6 +271,7 @@ function BuyProductContent() {
     business_id?: string;
     stock_quantity?: number | null;
     sold_out?: boolean;
+    variants?: Array<{ id: string; label: string; stock_quantity: number }>;
     seller?: {
       business_name?: string;
       instagram_username?: string;
@@ -283,6 +284,7 @@ function BuyProductContent() {
   const [address, setAddress] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"esewa" | "khalti" | "cod">("khalti");
   const [quantity, setQuantity] = useState(1);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   /** Saved delivery via buyer_key — pay without sending full PII from the browser. */
@@ -358,11 +360,37 @@ function BuyProductContent() {
 
   useEffect(() => {
     if (!product) return;
-    const tracked =
-      product.stock_quantity != null
-        ? Math.max(0, Math.floor(product.stock_quantity))
+    const variants = product.variants ?? [];
+    if (variants.length === 0) {
+      setSelectedVariantId(null);
+      return;
+    }
+    setSelectedVariantId((prev) => {
+      if (prev && variants.some((v) => v.id === prev && v.stock_quantity > 0)) {
+        return prev;
+      }
+      const firstInStock = variants.find((v) => v.stock_quantity > 0);
+      return firstInStock?.id ?? null;
+    });
+  }, [product]);
+
+  useEffect(() => {
+    if (!product) return;
+    const variants = product.variants ?? [];
+    const selected =
+      variants.length > 0
+        ? variants.find((v) => v.id === selectedVariantId) ?? null
         : null;
-    const soldOut = product.sold_out === true || tracked === 0;
+    const tracked =
+      selected != null
+        ? Math.max(0, Math.floor(selected.stock_quantity))
+        : product.stock_quantity != null
+          ? Math.max(0, Math.floor(product.stock_quantity))
+          : null;
+    const soldOut =
+      product.sold_out === true ||
+      tracked === 0 ||
+      (variants.length > 0 && !selected);
     if (soldOut) {
       setQuantity(1);
       return;
@@ -370,7 +398,7 @@ function BuyProductContent() {
     if (tracked != null && quantity > tracked) {
       setQuantity(Math.max(1, tracked));
     }
-  }, [product, quantity]);
+  }, [product, quantity, selectedVariantId]);
 
   const payloadBase = (override?: {
     customerName?: string;
@@ -383,6 +411,7 @@ function BuyProductContent() {
     address: (override?.address ?? address).trim(),
     city: "",
     quantity,
+    ...(selectedVariantId ? { variant_id: selectedVariantId } : {}),
     ...(buyerKey ? { buyer_key: buyerKey } : {}),
   });
 
@@ -454,6 +483,10 @@ function BuyProductContent() {
 
   const goToDetails = () => {
     setFormError(null);
+    if ((product?.variants?.length ?? 0) > 0 && !selectedVariantId) {
+      setFormError("Please select a size.");
+      return;
+    }
     if (expressMode) {
       setPhase("payment");
       return;
@@ -473,6 +506,11 @@ function BuyProductContent() {
 
   const onContinueCheckout = async () => {
     setFormError(null);
+    if ((product?.variants?.length ?? 0) > 0 && !selectedVariantId) {
+      setFormError("Please select a size.");
+      setPhase("review");
+      return;
+    }
     setBusy(true);
     try {
       if (expressMode && buyerKey) {
@@ -481,6 +519,7 @@ function BuyProductContent() {
           buyer_key: buyerKey,
           payment_method: paymentMethod,
           quantity,
+          ...(selectedVariantId ? { variant_id: selectedVariantId } : {}),
         });
         if (paymentMethod === "cod") {
           const bid = res.business_id || product?.business_id || "";
@@ -604,11 +643,25 @@ function BuyProductContent() {
   const sellerLine = formatSellerLine(product.seller);
   const isNpr = isNepalRupeesCurrency(product.currency);
   const priceCcy = product.currency;
-  const trackedStock =
-    product.stock_quantity != null ? Math.max(0, Math.floor(product.stock_quantity)) : null;
-  const isSoldOut = product.sold_out === true || trackedStock === 0;
+  const variants = product.variants ?? [];
+  const hasSizes = variants.length > 0;
+  const selectedVariant = hasSizes
+    ? variants.find((v) => v.id === selectedVariantId) ?? null
+    : null;
+  const trackedStock = hasSizes
+    ? selectedVariant != null
+      ? Math.max(0, Math.floor(selectedVariant.stock_quantity))
+      : 0
+    : product.stock_quantity != null
+      ? Math.max(0, Math.floor(product.stock_quantity))
+      : null;
+  const isSoldOut =
+    product.sold_out === true ||
+    trackedStock === 0 ||
+    (hasSizes && variants.every((v) => v.stock_quantity <= 0));
   const maxPurchasable =
     trackedStock == null ? 99 : Math.min(99, Math.max(0, trackedStock));
+  const selectedSizeLabel = selectedVariant?.label?.trim() || null;
 
   const setQty = (n: number) => {
     const upper = isSoldOut ? 1 : maxPurchasable;
@@ -721,7 +774,9 @@ function BuyProductContent() {
                           {trackedStock != null ? (
                             <p className={`mt-0.5 flex items-center gap-1 text-[11px] font-medium ${accent.success}`}>
                               <IconCheck className="size-3" />
-                              {trackedStock} {trackedStock === 1 ? "piece" : "pieces"} available
+                              {hasSizes && selectedSizeLabel
+                                ? `${trackedStock} of size ${selectedSizeLabel} available`
+                                : `${trackedStock} ${trackedStock === 1 ? "piece" : "pieces"} available`}
                             </p>
                           ) : null}
                         </div>
@@ -729,6 +784,41 @@ function BuyProductContent() {
                           {formatStorefrontPrice(unitPrice, priceCcy)}
                         </p>
                       </div>
+                      {hasSizes ? (
+                        <div className="mt-2">
+                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                            Size
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {variants.map((v) => {
+                              const sold = v.stock_quantity <= 0;
+                              const selected = v.id === selectedVariantId;
+                              return (
+                                <button
+                                  key={v.id}
+                                  type="button"
+                                  disabled={sold || isSoldOut}
+                                  onClick={() => {
+                                    setSelectedVariantId(v.id);
+                                    setFormError(null);
+                                    setQuantity(1);
+                                  }}
+                                  className={[
+                                    "min-w-[2.5rem] rounded-xl border px-2.5 py-1.5 text-xs font-semibold transition",
+                                    sold
+                                      ? "cursor-not-allowed border-zinc-100 bg-zinc-50 text-zinc-300 line-through"
+                                      : selected
+                                        ? `${accent.border} ${accent.bgSoft} ${accent.text}`
+                                        : "border-zinc-200 bg-white text-zinc-800 hover:border-violet-300",
+                                  ].join(" ")}
+                                >
+                                  {v.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
                       <div className="mt-2">
                         <QuantityStepper
                           quantity={quantity}
@@ -739,6 +829,12 @@ function BuyProductContent() {
                     </div>
                   </div>
                 </div>
+
+                {formError && phase === "review" ? (
+                  <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {formError}
+                  </p>
+                ) : null}
 
                 <div className="rounded-2xl border border-zinc-100 bg-white px-3.5 py-3 shadow-sm">
                   <h3 className="mb-2 text-sm font-semibold text-zinc-900">Order Summary</h3>
@@ -805,7 +901,10 @@ function BuyProductContent() {
                     <p className={`text-sm font-bold ${accent.text}`}>
                       {formatStorefrontPrice(esewaLineTotal, priceCcy)}
                     </p>
-                    <p className="text-xs text-zinc-500">Qty {quantity}</p>
+                    <p className="text-xs text-zinc-500">
+                      Qty {quantity}
+                      {selectedSizeLabel ? ` · Size ${selectedSizeLabel}` : ""}
+                    </p>
                   </div>
                 </div>
 

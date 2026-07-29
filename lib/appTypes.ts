@@ -2,6 +2,13 @@ export type OverlayTextPosition = "top" | "bottom";
 
 export type ProductCardPosition = "bottom" | "top_corner" | "both";
 
+export type ProductVariant = {
+  id: string;
+  label: string;
+  stockQuantity: number;
+  sortOrder: number;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -11,8 +18,10 @@ export type Product = {
   productUrl?: string;
   discountedPrice?: number | null;
   buyCode?: string;
-  /** Available units; null = unlimited (legacy). */
+  /** Available units; null = unlimited (legacy). For sized products this is the sum of variants. */
   stockQuantity?: number | null;
+  /** Empty / missing = unsized product. */
+  variants?: ProductVariant[];
   /** When this product was added to a live session lineup (newest first in UI). */
   sessionAddedAt?: string;
   /** Catalog row `updated_at` for sorting products not yet in this show. */

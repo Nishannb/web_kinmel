@@ -9,6 +9,8 @@ export type CodCheckoutPayload = {
   city?: string;
   /** Number of units (1–99). Defaults to 1 server-side if omitted. */
   quantity?: number;
+  /** Required when the product has size variants. */
+  variant_id?: string;
   /** Opaque key from DM link — links delivery profile to Instagram user after checkout. */
   buyer_key?: string;
 };
@@ -18,6 +20,7 @@ export type ExpressCheckoutPayload = {
   buyer_key: string;
   payment_method: "cod" | "esewa" | "khalti";
   quantity?: number;
+  variant_id?: string;
 };
 
 export type MaskedBuyerProfile = {
@@ -41,6 +44,8 @@ function checkoutJsonBody(payload: CodCheckoutPayload): string {
     quantity: q,
     qty: q,
   };
+  const vid = (payload.variant_id || "").trim();
+  if (vid) body.variant_id = vid;
   const bk = (payload.buyer_key || "").trim();
   if (bk) body.buyer_key = bk;
   return JSON.stringify(body);
@@ -97,6 +102,9 @@ export async function postExpressCheckout(payload: ExpressCheckoutPayload): Prom
       payment_method: payload.payment_method,
       quantity: q,
       qty: q,
+      ...(payload.variant_id?.trim()
+        ? { variant_id: payload.variant_id.trim() }
+        : {}),
     }),
   });
   const raw = await res.text();

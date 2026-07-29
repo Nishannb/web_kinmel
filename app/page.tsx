@@ -260,7 +260,16 @@ export default function HomePage() {
             </p>
             <div className="space-y-1">
               <p className="font-medium text-zinc-800">
-                Kinmel is developed by Naman Technologies Private Limited, registered in Nepal
+                Kinmel is developed by{" "}
+                <a
+                  href="https://namantechnologies.biz"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-violet-700 transition hover:text-violet-900 hover:underline"
+                >
+                  Naman Technologies Private Limited
+                </a>
+                , registered in Nepal
               </p>
             </div>
             <div className="space-y-2">

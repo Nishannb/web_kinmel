@@ -31,7 +31,15 @@ export function LegalPageShell({
             <div className="mt-3 space-y-1 text-sm text-zinc-600">
               <p>
                 <strong>Kinmel</strong> is operated by{" "}
-                <strong>Naman Technologies Private Limited</strong>, registered in Nepal.
+                <a
+                  href="https://namantechnologies.biz"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-violet-700 hover:text-violet-900 hover:underline"
+                >
+                  Naman Technologies Private Limited
+                </a>
+                , registered in Nepal.
               </p>
               <p>
                 Address: Pokhara Metropolitan City Ward No. 17, Balodaya Marg, Kaski, Gandaki,
