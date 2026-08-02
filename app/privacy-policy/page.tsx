@@ -10,7 +10,7 @@ export const metadata: Metadata = buildPageMetadata({
 
 export default function PrivacyPolicyPage() {
   return (
-    <LegalPageShell title="Privacy Policy" updated="June 13, 2026">
+    <LegalPageShell title="Privacy Policy" updated="August 3, 2026">
       <section className="space-y-3">
         <h2>Overview</h2>
         <p>
@@ -91,6 +91,45 @@ export default function PrivacyPolicyPage() {
           <li>Analytics tools used to measure app and website usage and improve Kinmel.</li>
           <li>When required by law or to protect rights, safety, and security.</li>
         </ul>
+      </section>
+
+      <section className="space-y-3">
+        <h2>Requests from public authorities</h2>
+        <p>
+          Naman Technologies Private Limited (“Kinmel,” “we”) may receive requests from public
+          authorities, courts, or law enforcement for personal data or personal information of users
+          (including data obtained via Meta Platform APIs, where applicable).
+        </p>
+        <p>We handle such requests as follows:</p>
+        <ul>
+          <li>
+            <strong>Legal review.</strong> Before disclosing any personal data, we review whether the
+            request is legally valid and binding under applicable law (including that it is issued by
+            a competent authority, identifies the data sought with reasonable specificity, and has an
+            appropriate legal basis).
+          </li>
+          <li>
+            <strong>Challenging unlawful requests.</strong> If we believe a request is unlawful,
+            overbroad, or otherwise improper, we may challenge it, seek clarification, narrow its
+            scope, or refuse disclosure where permitted by law, including with advice from legal
+            counsel when appropriate.
+          </li>
+          <li>
+            <strong>Data minimization.</strong> When we are required to respond, we disclose only the
+            minimum personal data necessary to satisfy the lawful request, and not more.
+          </li>
+          <li>
+            <strong>Documentation.</strong> We document such requests and our responses, including
+            what was requested, what (if anything) was disclosed, the legal basis we relied on, and
+            the internal people involved in handling the request, except where we are legally
+            prohibited from keeping or sharing such records.
+          </li>
+        </ul>
+        <p>
+          We do not voluntarily sell or provide Meta Platform Data or user personal information to
+          public authorities for marketing or unrelated commercial purposes. The data controller for
+          this processing is <strong>Naman Technologies Private Limited</strong> (Nepal).
+        </p>
       </section>
 
       <section className="space-y-3">

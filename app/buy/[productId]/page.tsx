@@ -301,27 +301,10 @@ function BuyProductContent() {
   }, []);
 
   useEffect(() => {
-    if (!buyerKey || forceEdit) {
-      setExpressMode(false);
-      setMaskedProfile(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const profile = await fetchMaskedBuyerProfile(buyerKey);
-        if (cancelled) return;
-        setMaskedProfile(profile);
-        setExpressMode(profile.has_profile === true);
-      } catch {
-        if (cancelled) return;
-        setMaskedProfile(null);
-        setExpressMode(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    // bk "express checkout" is temporarily disabled.
+    // Keep buyer_key for linking after standard checkout, but never auto-switch to express UI.
+    setExpressMode(false);
+    setMaskedProfile(null);
   }, [buyerKey, forceEdit]);
   useEffect(() => {
     if (!productId) {
