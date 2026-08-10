@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Keep master recordings local; site uses compressed mp4s
+/public/videos/*.original.mp4

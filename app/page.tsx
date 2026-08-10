@@ -105,10 +105,12 @@ export default function HomePage() {
             <div className="relative z-10 w-[62%] max-w-[260px] sm:w-[52%] sm:max-w-[280px]">
               <PhoneFrame
                 videoSrc="/videos/instalive.mp4"
-                posterSrc="/kinmel_preview/live.png"
+                posterSrc="/videos/instalive-poster.jpg"
                 alt="Kinmel Instagram live selling"
                 priority
                 floatClassName="km-float"
+                preload="auto"
+                loadMode="eager"
               />
             </div>
             <div className="absolute bottom-4 right-0 hidden w-[36%] rotate-6 opacity-95 sm:block lg:right-4">
@@ -203,9 +205,11 @@ export default function HomePage() {
           <div className="order-1 mx-auto w-full max-w-[280px] lg:order-2 lg:max-w-[320px]">
             <PhoneFrame
               videoSrc="/videos/kinmellive.mp4"
-              posterSrc="/kinmel_preview/live1.png"
+              posterSrc="/videos/kinmellive-poster.jpg"
               alt="Kinmel live selling on Instagram"
               floatClassName="km-float"
+              preload="none"
+              loadMode="lazy"
             />
           </div>
         </div>
