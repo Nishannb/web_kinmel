@@ -21,6 +21,7 @@ export default function StreamSetupPage() {
   const { getEventById } = useAppState();
   const event = getEventById(eventId);
   const streamConfig = useStreamConfig(eventId ?? null);
+  const isLegacyFacebookLive = event?.streamDestination === "facebook";
 
   const [rtmpUrl, setRtmpUrl] = useState("");
   const [streamKey, setStreamKey] = useState("");
@@ -34,27 +35,33 @@ export default function StreamSetupPage() {
   const hydratedRef = useRef(false);
 
   useEffect(() => {
-    if (streamConfig.status !== "ready" || hydratedRef.current) return;
+    if (isLegacyFacebookLive || streamConfig.status !== "ready" || hydratedRef.current) {
+      return;
+    }
 
     const businessRtmp = streamConfig.rtmpDefault?.rtmp_url?.trim() ?? "";
     const sessionRtmp = streamConfig.config?.rtmp_url?.trim() ?? "";
     const sessionPlatform = streamConfig.config?.platform ?? "instagram";
     const effectivePlatform =
       streamConfig.rtmpDefault?.platform ?? sessionPlatform;
+    const platformForForm =
+      effectivePlatform === "facebook"
+        ? "instagram"
+        : (effectivePlatform as "instagram" | "twitch" | "custom");
 
     savedRtmpUrlRef.current = businessRtmp;
     const prepopulated =
       sessionRtmp ||
       businessRtmp ||
-      devFallbackRtmpUrl(effectivePlatform);
+      devFallbackRtmpUrl(platformForForm);
 
     queueMicrotask(() => {
-      setPlatform(effectivePlatform);
+      setPlatform(platformForForm);
       setRtmpUrl(prepopulated);
       setStreamKey(streamConfig.config?.stream_key ?? "");
       hydratedRef.current = true;
     });
-  }, [streamConfig.config, streamConfig.rtmpDefault, streamConfig.status]);
+  }, [isLegacyFacebookLive, streamConfig.config, streamConfig.rtmpDefault, streamConfig.status]);
 
   const persistAndContinue = async (persistRtmpDefault: boolean) => {
     const effectiveUrl = rtmpUrl.trim();
@@ -105,6 +112,35 @@ export default function StreamSetupPage() {
       {!event ? (
         <section className="rounded-xl border border-zinc-200 bg-white p-6">
           <h1 className="text-xl font-semibold">Event not found</h1>
+        </section>
+      ) : isLegacyFacebookLive ? (
+        <section className="space-y-6">
+          <div className="rounded-xl border border-zinc-200 bg-white p-6">
+            <h1 className="text-2xl font-semibold">Stream Setup</h1>
+            <p className="mt-1 text-sm text-zinc-600">Event: {event.name}</p>
+          </div>
+          <section className="rounded-xl border border-zinc-200 bg-white p-6 space-y-4">
+            <p className="text-sm text-zinc-700">
+              Facebook Live is started from the Kinmel mobile app. No stream keys are needed
+              on the website.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => router.push("/live-selling")}
+                className="rounded-md border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/live-selling/${eventId}/live`)}
+                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+              >
+                Continue to workspace
+              </button>
+            </div>
+          </section>
         </section>
       ) : (
         <section className="space-y-6">

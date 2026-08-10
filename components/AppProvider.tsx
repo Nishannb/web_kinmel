@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { getSafeSession, isRecoverableAuthError, clearStaleAuthSession } from "@/lib/supabaseAuth";
 import { uploadProductImageToR2 } from "@/lib/uploadProductImageR2";
 import { validateBuyCode } from "@/lib/buyCode";
+import { saveStreamConfig } from "@/lib/backendClient";
 
 function requireValidBuyCode(raw: string): string {
   const result = validateBuyCode(raw);
@@ -153,7 +154,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .order("created_at", { ascending: true }),
       supabase
         .from("live_sessions")
-        .select("id,business_id,instagram_account_id,title,status,started_at,created_at")
+        .select(
+          "id,business_id,instagram_account_id,title,status,started_at,created_at,stream_destination,facebook_page_id"
+        )
         .eq("business_id", nextBusinessId)
         .order("created_at", { ascending: false }),
       supabase
@@ -272,6 +275,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       status: (row.status as LiveEvent["status"]) ?? "scheduled",
       startedAt: (row.started_at as string | null) ?? null,
       createdAt: String(row.created_at),
+      streamDestination:
+        (row.stream_destination as LiveEvent["streamDestination"] | null) === "facebook"
+          ? "facebook"
+          : "instagram",
+      facebookPageId: row.facebook_page_id
+        ? String(row.facebook_page_id)
+        : null,
       products: productsByEvent.get(String(row.id)) ?? [],
       overlaySettings: overlayByEvent.get(String(row.id)) ?? defaultOverlaySettings(),
     }));
@@ -410,6 +420,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           instagram_account_id: input.instagramAccountId,
           title,
           status: "scheduled",
+          stream_destination: "instagram",
+          facebook_page_id: null,
         })
         .select("id")
         .single();

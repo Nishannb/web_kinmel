@@ -35,16 +35,18 @@ export type OverlayStateEnvelope = {
 
 export type StreamConfig = {
   live_session_id: string;
-  platform: "instagram" | "twitch" | "custom";
+  platform: "instagram" | "twitch" | "custom" | "facebook";
   rtmp_url: string;
   stream_key: string;
   status: "pending" | "used" | "expired";
   expires_at: string | null;
   updated_at: string | null;
+  facebook_page_id?: string | null;
+  facebook_live_video_id?: string | null;
 };
 
 export type BusinessRtmpDefault = {
-  platform: "instagram" | "twitch" | "custom";
+  platform: "instagram" | "twitch" | "custom" | "facebook";
   rtmp_url: string;
   updated_at: string | null;
 };
@@ -143,11 +145,12 @@ export async function fetchStreamConfig(
 }
 
 export type StreamConfigInput = {
-  platform: "instagram" | "twitch" | "custom";
+  platform: "instagram" | "twitch" | "custom" | "facebook";
   rtmp_url: string;
   stream_key: string;
   expires_at?: string | null;
   persist_rtmp_default?: boolean;
+  facebook_page_id?: string | null;
 };
 
 export async function saveStreamConfig(
@@ -166,6 +169,7 @@ export async function saveStreamConfig(
         stream_key: input.stream_key,
         expires_at: input.expires_at ?? null,
         persist_rtmp_default: Boolean(input.persist_rtmp_default),
+        facebook_page_id: input.facebook_page_id ?? null,
       }),
     }
   );

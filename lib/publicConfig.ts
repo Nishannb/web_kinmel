@@ -1,16 +1,74 @@
 /**
  * Kinmel web — API / storefront URLs.
  *
- * Development: set in `.env.local` (see `.env.example`).
- * Production: `.env.production` or Vercel env vars (override file defaults).
+ * Flip NEXT_PUBLIC_KINMEL_ENV=dev|prod (see `.env.local` / `.env.example`).
+ * Production builds default to prod unless explicitly overridden.
+ *
+ * Keep both Supabase pairs in env; only the switch selects which is used.
  */
 
-export const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://sqmvkihvgegakhummwqe.supabase.co";
+export type KinmelEnv = "prod" | "dev";
 
-export const SUPABASE_ANON_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+function isNodeProduction(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
+function resolveKinmelEnv(): KinmelEnv {
+  const fromEnv = (process.env.NEXT_PUBLIC_KINMEL_ENV || "").trim().toLowerCase();
+  if (fromEnv === "dev" || fromEnv === "development" || fromEnv === "local") {
+    return "dev";
+  }
+  if (fromEnv === "prod" || fromEnv === "production") {
+    return "prod";
+  }
+  return isNodeProduction() ? "prod" : "dev";
+}
+
+export const KINMEL_ENV: KinmelEnv = resolveKinmelEnv();
+
+const PROD_SUPABASE_URL = "https://sqmvkihvgegakhummwqe.supabase.co";
+const PROD_SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxbXZraWh2Z2VnYWtodW1td3FlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NzUxMzEsImV4cCI6MjA5MzM1MTEzMX0.E9q9xvEPrH-EDjzdWB7_DeMCPQ-sVTEU0GxBytojU9E";
+
+const DEV_SUPABASE_URL_DEFAULT = "https://uvzjzforekazkwhrttbs.supabase.co";
+
+function pickSupabase(): { url: string; anonKey: string } {
+  // Explicit single-target overrides still win (legacy).
+  const legacyUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const legacyAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  if (legacyUrl && legacyAnon && !process.env.NEXT_PUBLIC_KINMEL_ENV) {
+    return { url: legacyUrl, anonKey: legacyAnon };
+  }
+
+  if (KINMEL_ENV === "dev") {
+    return {
+      url:
+        process.env.NEXT_PUBLIC_SUPABASE_URL_DEV?.trim() ||
+        legacyUrl ||
+        DEV_SUPABASE_URL_DEFAULT,
+      anonKey:
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_DEV?.trim() ||
+        legacyAnon ||
+        "",
+    };
+  }
+
+  return {
+    url:
+      process.env.NEXT_PUBLIC_SUPABASE_URL_PROD?.trim() ||
+      legacyUrl ||
+      PROD_SUPABASE_URL,
+    anonKey:
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_PROD?.trim() ||
+      legacyAnon ||
+      PROD_SUPABASE_ANON_KEY,
+  };
+}
+
+const activeSupabase = pickSupabase();
+
+export const SUPABASE_URL = activeSupabase.url;
+export const SUPABASE_ANON_KEY = activeSupabase.anonKey;
 
 /** Production Flask API (DigitalOcean). */
 export const PRODUCTION_BACKEND_URL = "https://api.kinmel.shop";
@@ -24,7 +82,7 @@ export const BACKEND_HTTP_PROXY_PREFIX = "/kinmel-backend";
 const DEFAULT_DEV_FLASK_HTTP = "http://127.0.0.1:8080";
 
 function isProduction(): boolean {
-  return process.env.NODE_ENV === "production";
+  return isNodeProduction();
 }
 
 function trimSlash(s: string) {
@@ -41,7 +99,7 @@ function httpsToWss(url: string): string {
 export function resolveBackendHttpUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
   if (fromEnv) return fromEnv;
-  if (isProduction()) return PRODUCTION_BACKEND_URL;
+  if (isProduction() || KINMEL_ENV === "prod") return PRODUCTION_BACKEND_URL;
   return "";
 }
 
@@ -113,7 +171,9 @@ export function getBackendWsBase(): string {
 
   const direct =
     process.env.NEXT_PUBLIC_FLASK_URL?.trim() ||
-    (isProduction() ? PRODUCTION_BACKEND_URL : DEFAULT_DEV_FLASK_HTTP);
+    (isProduction() || KINMEL_ENV === "prod"
+      ? PRODUCTION_BACKEND_URL
+      : DEFAULT_DEV_FLASK_HTTP);
   return httpsToWss(direct);
 }
 

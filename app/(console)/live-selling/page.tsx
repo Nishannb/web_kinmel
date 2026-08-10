@@ -96,7 +96,9 @@ export default function LiveSellingPage() {
     setCreateBusy(true);
     setError(null);
     try {
-      const id = await createEvent({ instagramAccountId });
+      const id = await createEvent({
+        instagramAccountId,
+      });
       router.push(`/live-selling/${id}/stream`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -120,41 +122,48 @@ export default function LiveSellingPage() {
     }
   };
 
+  const createDisabled = !businessId || !instagramAccountId || createBusy;
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="shrink-0 rounded-xl border border-zinc-200 bg-white p-6">
         <h1 className="text-2xl font-semibold">Live Selling</h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          Create Instagram Live events here. Facebook Live is started from the Kinmel mobile app.
+        </p>
       </div>
 
       <div className="shrink-0 rounded-xl border border-zinc-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-zinc-900">Create new event</h2>
-        <form
-          className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end"
-          onSubmit={onCreate}
-        >
-          <label className="min-w-0 flex-1 space-y-1">
-            <span className="text-sm font-medium text-zinc-800">Instagram account</span>
-            <select
-              value={instagramAccountId}
-              onChange={(event) => setInstagramAccountId(event.target.value)}
-              required
-              className="w-full rounded-md border border-zinc-300 px-3 py-2.5 outline-none focus:border-zinc-500"
+        <h2 className="text-lg font-semibold text-zinc-900">Create Instagram Live event</h2>
+        <form className="mt-4 flex flex-col gap-4" onSubmit={onCreate}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+            <label className="min-w-0 flex-1 space-y-1">
+              <span className="text-sm font-medium text-zinc-800">Instagram account</span>
+              <select
+                value={instagramAccountId}
+                onChange={(event) => setInstagramAccountId(event.target.value)}
+                required
+                className="w-full rounded-md border border-zinc-300 px-3 py-2.5 outline-none focus:border-zinc-500"
+              >
+                <option value="">Select account</option>
+                {instagramAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.username || acc.instagramUserId}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-zinc-500">
+                Used for the shop link (kinmel.shop/username) and comment-to-buy.
+              </p>
+            </label>
+            <button
+              type="submit"
+              disabled={createDisabled}
+              className="w-full shrink-0 rounded-md bg-zinc-900 px-6 py-2.5 text-sm font-medium text-white disabled:opacity-60 sm:w-auto sm:min-w-[180px]"
             >
-              <option value="">Select account</option>
-              {instagramAccounts.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.username || acc.instagramUserId}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="submit"
-            disabled={!businessId || !instagramAccountId || createBusy}
-            className="shrink-0 rounded-md bg-zinc-900 px-6 py-2.5 text-sm font-medium text-white disabled:opacity-60 lg:min-w-[180px]"
-          >
-            {createBusy ? "Creating…" : "Create event"}
-          </button>
+              {createBusy ? "Creating…" : "Create event"}
+            </button>
+          </div>
         </form>
         {error ? (
           <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -176,7 +185,7 @@ export default function LiveSellingPage() {
             <div>
               <p className="text-sm font-medium text-zinc-800">No events yet</p>
               <p className="mt-1 text-sm text-zinc-500">
-                Create an event above to set up stream keys and manage your live lineup.
+                Create an Instagram Live event above to set up stream keys and manage your lineup.
               </p>
             </div>
           </div>
@@ -198,36 +207,33 @@ export default function LiveSellingPage() {
                   const isOpen = expanded.has(event.id);
                   const instagram = accountById.get(event.instagramAccountId) ?? "—";
                   const deleteBusy = deleteBusyId === event.id;
-
                   return (
                     <Fragment key={event.id}>
-                      <tr className="bg-white hover:bg-zinc-50/80">
-                        <td className="px-3 py-3 sm:px-4">
-                          <p className="font-medium text-zinc-900">{event.name}</p>
+                      <tr className="align-middle">
+                        <td className="px-3 py-3 font-medium text-zinc-900 sm:px-4">
+                          {event.name}
                         </td>
                         <td className="px-3 py-3 sm:px-4">
                           <span
-                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${statusBadgeClass(event.status)}`}
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${statusBadgeClass(
+                              event.status
+                            )}`}
                           >
                             {statusLabel(event.status)}
                           </span>
                         </td>
-                        <td className="hidden px-3 py-3 tabular-nums text-zinc-700 lg:table-cell lg:px-4">
+                        <td className="hidden px-3 py-3 text-zinc-700 lg:table-cell lg:px-4">
                           {event.products.length}
                         </td>
                         <td className="hidden px-3 py-3 text-zinc-700 lg:table-cell lg:px-4">
                           {instagram}
                         </td>
-                        <td className="hidden px-3 py-3 xl:table-cell xl:px-4">
-                          <div className="flex justify-end">
-                            <EventActions
-                              eventId={event.id}
-                              deleteBusy={deleteBusy}
-                              onDelete={() => {
-                                void onDelete(event.id);
-                              }}
-                            />
-                          </div>
+                        <td className="hidden px-3 py-3 text-right xl:table-cell xl:px-4">
+                          <EventActions
+                            eventId={event.id}
+                            deleteBusy={deleteBusy}
+                            onDelete={() => void onDelete(event.id)}
+                          />
                         </td>
                         <td className="px-2 py-3 xl:hidden">
                           <TableExpandButton
@@ -237,34 +243,15 @@ export default function LiveSellingPage() {
                         </td>
                       </tr>
                       {isOpen ? (
-                        <tr className="bg-zinc-50/90 xl:hidden">
-                          <td colSpan={6} className="px-3 py-4 sm:px-4">
-                            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm lg:hidden">
-                              <div>
-                                <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                                  Products
-                                </dt>
-                                <dd className="mt-0.5 tabular-nums text-zinc-900">
-                                  {event.products.length}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                                  Instagram
-                                </dt>
-                                <dd className="mt-0.5 text-zinc-900">{instagram}</dd>
-                              </div>
-                            </dl>
-                            <div className="mt-3 lg:mt-0">
-                              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                                Actions
-                              </p>
+                        <tr className="bg-zinc-50 xl:hidden">
+                          <td colSpan={6} className="px-4 py-3">
+                            <div className="flex flex-col gap-2 text-sm text-zinc-700">
+                              <div>Products: {event.products.length}</div>
+                              <div>Instagram: {instagram}</div>
                               <EventActions
                                 eventId={event.id}
                                 deleteBusy={deleteBusy}
-                                onDelete={() => {
-                                  void onDelete(event.id);
-                                }}
+                                onDelete={() => void onDelete(event.id)}
                               />
                             </div>
                           </td>

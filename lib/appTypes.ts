@@ -43,6 +43,9 @@ export type LiveEvent = {
   status: "scheduled" | "live" | "ended" | "cancelled";
   startedAt: string | null;
   createdAt: string;
+  /** instagram = manual Live Producer keys; facebook = API LiveVideo at Go Live */
+  streamDestination: "instagram" | "facebook";
+  facebookPageId: string | null;
   products: Product[];
   overlaySettings: OverlaySettings;
 };

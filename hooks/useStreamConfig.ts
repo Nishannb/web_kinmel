@@ -16,11 +16,12 @@ export function useStreamConfig(liveSessionId: string | null): {
   status: StreamConfigStatus;
   error: string | null;
   save: (input: {
-    platform: "instagram" | "twitch" | "custom";
+    platform: "instagram" | "twitch" | "custom" | "facebook";
     rtmpUrl: string;
     streamKey: string;
     expiresAt?: string | null;
     persistRtmpDefault?: boolean;
+    facebookPageId?: string | null;
   }) => Promise<boolean>;
   reload: () => Promise<void>;
 } {
@@ -56,11 +57,12 @@ export function useStreamConfig(liveSessionId: string | null): {
 
   const save = useCallback(
     async (input: {
-      platform: "instagram" | "twitch" | "custom";
+      platform: "instagram" | "twitch" | "custom" | "facebook";
       rtmpUrl: string;
       streamKey: string;
       expiresAt?: string | null;
       persistRtmpDefault?: boolean;
+      facebookPageId?: string | null;
     }): Promise<boolean> => {
       if (!liveSessionId) return false;
       setStatus("saving");
@@ -72,6 +74,7 @@ export function useStreamConfig(liveSessionId: string | null): {
           stream_key: input.streamKey,
           expires_at: input.expiresAt ?? null,
           persist_rtmp_default: input.persistRtmpDefault,
+          facebook_page_id: input.facebookPageId ?? null,
         });
         setConfig(result.config);
         setRtmpDefault(result.rtmp_default);

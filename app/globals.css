@@ -1,11 +1,97 @@
 @import "tailwindcss";
 
-/* Base document styles (Tailwind preflight handles most resets) */
 html,
 body {
   height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  @apply bg-zinc-50 text-zinc-900;
+  margin: 0;
+  background: #ffffff;
+  color: #111111;
+}
+
+.km-section-white {
+  background-color: #ffffff !important;
+  color: #111111 !important;
+}
+
+.km-section-black {
+  background-color: #0a0a0a !important;
+  color: #ffffff !important;
+}
+
+.km-section-white a {
+  color: inherit;
+}
+
+.km-section-black a {
+  color: inherit;
+}
+
+.km-muted-on-white {
+  color: #3f3f46 !important;
+}
+
+.km-muted-on-black {
+  color: #d4d4d8 !important;
+}
+
+.km-accent {
+  color: #9b2a40 !important;
+}
+
+.km-dot-accent {
+  background-color: #9b2a40 !important;
+}
+
+@keyframes km-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes km-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.km-float {
+  animation: km-float 5.5s ease-in-out infinite;
+}
+
+.km-float-delayed {
+  animation: km-float 6.2s ease-in-out infinite;
+  animation-delay: 0.6s;
+}
+
+.km-fade-up {
+  animation: km-fade-up 0.8s ease-out both;
+}
+
+.km-fade-up-delay {
+  animation: km-fade-up 0.9s ease-out 0.15s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .km-float,
+  .km-float-delayed,
+  .km-fade-up,
+  .km-fade-up-delay {
+    animation: none;
+  }
 }

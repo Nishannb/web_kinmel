@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-
 import { AppProvider } from "@/components/AppProvider";
 import { FACEBOOK_APP_ID, SITE_URL } from "@/lib/siteMetadata";
 
 import "./globals.css";
 
+
 const siteDescription =
-  "Shoppable Instagram live and recorded video — product overlays, comment buy codes, and web checkout for Nepal.";
+  "Make Instagram Reels and Live Shoppable. Sell on Instagram Live and Reels with Kinmel — comment to buy, catalog, and checkout for sellers.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
