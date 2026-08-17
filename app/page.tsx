@@ -275,8 +275,8 @@ export default function HomePage() {
               </h3>
               <p className="mt-3 max-w-xl text-base leading-relaxed km-muted-on-white">
                 Use Kinmel for your catalog, lives, and shoppable posts at no monthly fee.
-                Online payments via <strong>eSewa</strong> and <strong>Khalti</strong> have a{" "}
-                <strong>3% commission</strong>. <strong>COD orders have 0% commission</strong>.
+                Online payments via <strong>Khalti</strong> and <strong>eSewa</strong> have a{" "}
+                <strong>2.9% commission</strong>. <strong>COD orders have 0% commission</strong>.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link

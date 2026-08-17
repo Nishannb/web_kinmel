@@ -6,7 +6,7 @@ export type CodCheckoutPayload = {
   customer_name: string;
   phone: string;
   address: string;
-  city?: string;
+  city: string;
   /** Number of units (1–99). Defaults to 1 server-side if omitted. */
   quantity?: number;
   /** Required when the product has size variants. */
@@ -40,7 +40,7 @@ function checkoutJsonBody(payload: CodCheckoutPayload): string {
     customer_name: payload.customer_name,
     phone: payload.phone,
     address: payload.address,
-    city: payload.city ?? "",
+    city: (payload.city || "").trim(),
     quantity: q,
     qty: q,
   };

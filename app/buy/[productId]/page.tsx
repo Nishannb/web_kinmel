@@ -19,6 +19,8 @@ import {
 } from "@/lib/checkoutBuyerDetails";
 import { formatStorefrontPrice, isNepalRupeesCurrency } from "@/lib/formatNpr";
 import { KinmelBrandLink, KinmelLogoMark } from "@/components/KinmelLogo";
+import { LocationAddressInput } from "@/components/checkout/LocationAddressInput";
+import { nepalCities } from "@/lib/nepalCities";
 import { MoreFromSellerRail } from "@/components/storefront/MoreFromSellerRail";
 
 function persistEsewaCheckoutContext(productId: string, transactionUuid: string) {
@@ -282,6 +284,7 @@ function BuyProductContent() {
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"esewa" | "khalti" | "cod">("khalti");
   const [quantity, setQuantity] = useState(1);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
@@ -297,6 +300,7 @@ function BuyProductContent() {
       setCustomerName(saved.customerName);
       setPhone(saved.phone);
       setAddress(saved.address);
+      setCity(saved.city);
     }
   }, []);
 
@@ -387,12 +391,13 @@ function BuyProductContent() {
     customerName?: string;
     phone?: string;
     address?: string;
+    city?: string;
   }) => ({
     product_id: productId,
     customer_name: (override?.customerName ?? customerName).trim(),
     phone: (override?.phone ?? phone).trim(),
     address: (override?.address ?? address).trim(),
-    city: "",
+    city: (override?.city ?? city).trim(),
     quantity,
     ...(selectedVariantId ? { variant_id: selectedVariantId } : {}),
     ...(buyerKey ? { buyer_key: buyerKey } : {}),
@@ -403,12 +408,14 @@ function BuyProductContent() {
       customerName: string;
       phone: string;
       address: string;
+      city: string;
     }>,
   ) => {
     saveCheckoutBuyerDetails({
       customerName: override?.customerName ?? customerName,
       phone: override?.phone ?? phone,
       address: override?.address ?? address,
+      city: override?.city ?? city,
     });
   };
 
@@ -418,10 +425,12 @@ function BuyProductContent() {
     const next = {
       customerName: String(data.get("name") ?? "").trim(),
       address: String(data.get("street-address") ?? "").trim(),
+      city: String(data.get("address-level2") ?? "").trim(),
       phone: String(data.get("tel") ?? "").trim(),
     };
     setCustomerName(next.customerName);
     setAddress(next.address);
+    setCity(next.city);
     setPhone(next.phone);
     return next;
   };
@@ -432,6 +441,7 @@ function BuyProductContent() {
       customerName: customerName.trim() || saved?.customerName || "",
       phone: phone.trim() || saved?.phone || "",
       address: address.trim() || saved?.address || "",
+      city: city.trim() || saved?.city || "",
     };
     if (values.customerName && values.customerName !== customerName) {
       setCustomerName(values.customerName);
@@ -442,6 +452,9 @@ function BuyProductContent() {
     if (values.address && values.address !== address) {
       setAddress(values.address);
     }
+    if (values.city && values.city !== city) {
+      setCity(values.city);
+    }
     return values;
   };
 
@@ -449,9 +462,15 @@ function BuyProductContent() {
     customerName: string;
     phone: string;
     address: string;
+    city: string;
   }) => {
-    if (!values.customerName.trim() || !values.phone.trim() || !values.address.trim()) {
-      setFormError("Please enter your name, full delivery address, and phone number.");
+    if (
+      !values.customerName.trim() ||
+      !values.phone.trim() ||
+      !values.address.trim() ||
+      !values.city.trim()
+    ) {
+      setFormError("Please enter your name, address, city, and phone number.");
       return false;
     }
     setFormError(null);
@@ -918,19 +937,34 @@ function BuyProductContent() {
                     />
                   </label>
                   <label className="block text-sm font-medium text-zinc-700" htmlFor="checkout-address">
-                    Delivery address (full address)
-                    <textarea
+                    Delivery address
+                    <LocationAddressInput
                       id="checkout-address"
                       name="street-address"
                       value={address}
-                      onChange={(e) => setAddress(e.target.value)}
+                      onChange={setAddress}
                       onBlur={() => persistBuyerDetails()}
                       rows={3}
-                      placeholder="Street, area, landmark, city"
+                      placeholder="Street, area, landmark"
                       className={`mt-1.5 w-full resize-y rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none ${accent.focus}`}
-                      autoComplete="shipping street-address"
-                      enterKeyHint="next"
                       required
+                    />
+                  </label>
+                  <label className="block text-sm font-medium text-zinc-700" htmlFor="checkout-city">
+                    City
+                    <LocationAddressInput
+                      id="checkout-city"
+                      name="address-level2"
+                      value={city}
+                      onChange={setCity}
+                      onBlur={() => persistBuyerDetails()}
+                      as="input"
+                      tokens={nepalCities}
+                      replaceEntireValue
+                      placeholder="Kathmandu, Pokhara, Lalitpur…"
+                      className={`mt-1.5 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none ${accent.focus}`}
+                      required
+                      hint="City or municipality used for courier pricing."
                     />
                   </label>
                   <label className="block text-sm font-medium text-zinc-700" htmlFor="checkout-phone">

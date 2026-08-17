@@ -176,21 +176,43 @@ export async function saveStreamConfig(
   return readJson<StreamConfigEnvelope>(res);
 }
 
+export type ProviderDeliveryQuote = {
+  provider: string;
+  ok: boolean;
+  display_name: string;
+  logo_path: string;
+  final_price: number | null;
+  provider_price?: number | null;
+  markup?: number | null;
+  currency?: string;
+  error?: string | null;
+  pickup_branch_code?: string | null;
+  pickup_branch_name?: string | null;
+  destination_branch_code?: string | null;
+  destination_branch_name?: string | null;
+  details?: Record<string, unknown>;
+};
+
 export type BookDeliveryQuote = {
   price: number | null;
   discount: number | null;
   promo_discount: number | null;
   additional_charge: number | null;
   final_price: number | null;
+  markup?: number | null;
+  pathao_final_price?: number | null;
   cod_enabled: boolean | null;
   cod_percentage: number | null;
   plan_id?: unknown;
+  provider?: string;
 };
 
 export type BookDeliveryResult = {
   ok: boolean;
   order_id: string;
   provider: string;
+  providers?: string[];
+  quotes?: ProviderDeliveryQuote[];
   store_id?: number;
   item_weight?: number;
   token_refreshed?: boolean;
@@ -327,7 +349,12 @@ export async function fetchBusinessEarnings(
 export async function bookOrderDelivery(
   orderId: string,
   businessId: string,
-  itemWeightKg: number
+  itemWeightKg: number,
+  packageDims?: {
+    widthCm?: number;
+    heightCm?: number;
+    lengthCm?: number;
+  }
 ): Promise<BookDeliveryResult> {
   const headers = await authHeaders();
   const res = await safeBackendFetch(
@@ -338,6 +365,15 @@ export async function bookOrderDelivery(
       body: JSON.stringify({
         business_id: businessId,
         item_weight: itemWeightKg,
+        ...(packageDims?.widthCm != null
+          ? { package_width: packageDims.widthCm }
+          : {}),
+        ...(packageDims?.heightCm != null
+          ? { package_height: packageDims.heightCm }
+          : {}),
+        ...(packageDims?.lengthCm != null
+          ? { package_length: packageDims.lengthCm }
+          : {}),
       }),
     }
   );
@@ -355,6 +391,7 @@ export type PlaceDeliveryResult = {
   order_tracking_id?: string;
   parcel_consignment_id?: string;
   parcel_status?: string | null;
+  logistics_provider?: string | null;
   shipping_fee?: number;
   message?: string;
 };
@@ -362,7 +399,13 @@ export type PlaceDeliveryResult = {
 export async function placeOrderDelivery(
   orderId: string,
   businessId: string,
-  itemWeightKg: number
+  itemWeightKg: number,
+  provider?: string,
+  packageDims?: {
+    widthCm?: number;
+    heightCm?: number;
+    lengthCm?: number;
+  }
 ): Promise<PlaceDeliveryResult> {
   const headers = await authHeaders();
   const res = await safeBackendFetch(
@@ -373,6 +416,16 @@ export async function placeOrderDelivery(
       body: JSON.stringify({
         business_id: businessId,
         item_weight: itemWeightKg,
+        ...(provider ? { provider } : {}),
+        ...(packageDims?.widthCm != null
+          ? { package_width: packageDims.widthCm }
+          : {}),
+        ...(packageDims?.heightCm != null
+          ? { package_height: packageDims.heightCm }
+          : {}),
+        ...(packageDims?.lengthCm != null
+          ? { package_length: packageDims.lengthCm }
+          : {}),
       }),
     }
   );

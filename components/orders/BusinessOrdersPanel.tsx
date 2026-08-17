@@ -69,6 +69,7 @@ export type BusinessOrderRow = {
   order_tracking_id?: string | null;
   parcel_consignment_id?: string | null;
   parcel_status?: string | null;
+  logistics_provider?: string | null;
   return_shipping_fee?: number | null;
   ordered_at: string;
   delivered_at?: string | null;
@@ -249,6 +250,22 @@ function coerceOrderStatus(raw: string): OrderStatus {
   return ORDER_STATUS_OPTIONS.includes(s as OrderStatus) ? (s as OrderStatus) : "pending";
 }
 
+function isDeliveryBooked(order: Pick<BusinessOrderRow, "parcel_consignment_id" | "status">) {
+  return (
+    Boolean(order.parcel_consignment_id?.trim()) ||
+    order.status === "delivery_request_placed"
+  );
+}
+
+function kinmelTrackingPath(orderId: string): string {
+  return `/track/${encodeURIComponent(orderId)}`;
+}
+
+function kinmelTrackingUrl(orderId: string): string {
+  if (typeof window === "undefined") return kinmelTrackingPath(orderId);
+  return `${window.location.origin}${kinmelTrackingPath(orderId)}`;
+}
+
 export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
   const [rows, setRows] = useState<BusinessOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -266,18 +283,67 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
     Record<string, { kind: "ok" | "err"; text: string } | null>
   >({});
   const [bookWeightByOrderId, setBookWeightByOrderId] = useState<Record<string, string>>({});
+  const [bookDimsByOrderId, setBookDimsByOrderId] = useState<
+    Record<string, { width: string; height: string; length: string }>
+  >({});
   const [bookQuoteByOrderId, setBookQuoteByOrderId] = useState<
     Record<
       string,
       {
-        finalPrice: number | null;
-        price: number | null;
         weight: number;
-        storeId?: number;
+        dims: { width: number; height: number; length: number };
+        quotes: {
+          provider: string;
+          displayName: string;
+          logoPath: string;
+          finalPrice: number | null;
+          ok: boolean;
+          error?: string | null;
+        }[];
+        selectedProvider: string;
       } | null
     >
   >({});
+  const [selectedProviderByOrderId, setSelectedProviderByOrderId] = useState<
+    Record<string, string>
+  >({});
+  const [copiedTrackingOrderId, setCopiedTrackingOrderId] = useState<string | null>(
+    null
+  );
 
+  const parsePackageDims = (orderId: string) => {
+    const dims = bookDimsByOrderId[orderId] ?? {
+      width: "",
+      height: "",
+      length: "",
+    };
+    const width = Number(dims.width);
+    const height = Number(dims.height);
+    const length = Number(dims.length);
+    if (
+      ![width, height, length].every(
+        (n) => Number.isFinite(n) && n >= 1 && n <= 200
+      )
+    ) {
+      return null;
+    }
+    return {
+      width: Math.round(width),
+      height: Math.round(height),
+      length: Math.round(length),
+    };
+  };
+
+  const clearQuoteForOrder = (orderId: string) => {
+    setBookQuoteByOrderId((prev) => ({
+      ...prev,
+      [orderId]: null,
+    }));
+    setBookMessageByOrderId((prev) => ({
+      ...prev,
+      [orderId]: null,
+    }));
+  };
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -382,23 +448,66 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
       }));
       return;
     }
+    const dims = parsePackageDims(orderId);
+    if (!dims) {
+      setBookMessageByOrderId((prev) => ({
+        ...prev,
+        [orderId]: {
+          kind: "err",
+          text: "Enter package width, height, and length between 1 and 200 cm.",
+        },
+      }));
+      return;
+    }
 
     setBookBusyId(orderId);
     setBookMessageByOrderId((prev) => ({ ...prev, [orderId]: null }));
     setBookQuoteByOrderId((prev) => ({ ...prev, [orderId]: null }));
     try {
-      const result = await bookOrderDelivery(orderId, businessId, weight);
-      const finalPrice = result.quote?.final_price ?? null;
-      const price = result.quote?.price ?? null;
+      const result = await bookOrderDelivery(orderId, businessId, weight, {
+        widthCm: dims.width,
+        heightCm: dims.height,
+        lengthCm: dims.length,
+      });
+      const quotes = (result.quotes ?? [])
+        .map((q) => ({
+          provider: q.provider,
+          displayName: q.display_name || q.provider,
+          logoPath: q.logo_path || "",
+          finalPrice: q.final_price ?? null,
+          ok: Boolean(q.ok && q.final_price != null),
+          error: q.error ?? null,
+        }))
+        .sort((a, b) => {
+          if (a.ok && !b.ok) return -1;
+          if (!a.ok && b.ok) return 1;
+          return (a.finalPrice ?? Infinity) - (b.finalPrice ?? Infinity);
+        });
+      const okQuotes = quotes.filter((q) => q.ok);
+      const selected =
+        selectedProviderByOrderId[orderId] &&
+        okQuotes.some((q) => q.provider === selectedProviderByOrderId[orderId])
+          ? selectedProviderByOrderId[orderId]
+          : okQuotes[0]?.provider || result.provider || "pathao";
+      setSelectedProviderByOrderId((prev) => ({ ...prev, [orderId]: selected }));
       setBookQuoteByOrderId((prev) => ({
         ...prev,
         [orderId]: {
-          finalPrice,
-          price,
           weight,
-          storeId: result.store_id,
+          dims,
+          quotes,
+          selectedProvider: selected,
         },
       }));
+      if (okQuotes.length === 0) {
+        setBookMessageByOrderId((prev) => ({
+          ...prev,
+          [orderId]: {
+            kind: "err",
+            text: result.message || "No delivery quotes available",
+          },
+        }));
+      }
     } catch (err) {
       const text = err instanceof Error ? err.message : "Book delivery failed";
       setBookMessageByOrderId((prev) => ({
@@ -424,11 +533,35 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
       }));
       return;
     }
+    const dims = parsePackageDims(orderId) ?? quote?.dims ?? null;
+    if (!dims) {
+      setBookMessageByOrderId((prev) => ({
+        ...prev,
+        [orderId]: {
+          kind: "err",
+          text: "Enter package width, height, and length between 1 and 200 cm.",
+        },
+      }));
+      return;
+    }
+
+    const provider =
+      selectedProviderByOrderId[orderId] || quote?.selectedProvider || "pathao";
 
     setBookBusyId(orderId);
     setBookMessageByOrderId((prev) => ({ ...prev, [orderId]: null }));
     try {
-      const result = await placeOrderDelivery(orderId, businessId, weight);
+      const result = await placeOrderDelivery(
+        orderId,
+        businessId,
+        weight,
+        provider,
+        {
+          widthCm: dims.width,
+          heightCm: dims.height,
+          lengthCm: dims.length,
+        }
+      );
       setRows((prev) =>
         prev.map((r) =>
           r.id === orderId
@@ -442,6 +575,8 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                 parcel_consignment_id:
                   result.parcel_consignment_id ?? r.parcel_consignment_id,
                 parcel_status: result.parcel_status ?? r.parcel_status,
+                logistics_provider:
+                  result.logistics_provider ?? r.logistics_provider,
               }
             : r
         )
@@ -743,6 +878,38 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                                       Delivery
                                     </h3>
                                     <p className="mt-2 break-words text-zinc-800">{pickAddress(customer)}</p>
+                                    {isDeliveryBooked(order) ? (
+                                      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3">
+                                        <a
+                                          href={kinmelTrackingPath(order.id)}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-violet-700"
+                                        >
+                                          Track delivery
+                                        </a>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const url = kinmelTrackingUrl(order.id);
+                                            void navigator.clipboard
+                                              .writeText(url)
+                                              .then(() => {
+                                                setCopiedTrackingOrderId(order.id);
+                                                window.setTimeout(
+                                                  () => setCopiedTrackingOrderId(null),
+                                                  2000
+                                                );
+                                              });
+                                          }}
+                                          className="rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                                        >
+                                          {copiedTrackingOrderId === order.id
+                                            ? "Link copied"
+                                            : "Copy tracking link"}
+                                        </button>
+                                      </div>
+                                    ) : null}
                                   </div>
                                   <div className="min-w-0 rounded-lg border border-zinc-200 bg-white p-4">
                                     <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
@@ -860,41 +1027,148 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                                         ...prev,
                                         [order.id]: v,
                                       }));
-                                      // Clear prior quote when weight changes.
-                                      setBookQuoteByOrderId((prev) => ({
-                                        ...prev,
-                                        [order.id]: null,
-                                      }));
-                                      setBookMessageByOrderId((prev) => ({
-                                        ...prev,
-                                        [order.id]: null,
-                                      }));
+                                      clearQuoteForOrder(order.id);
                                     }}
                                     className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-violet-600 focus:ring-1 focus:ring-violet-600 disabled:opacity-60"
                                   />
+                                  <p className="mt-3 text-xs font-medium text-zinc-600">
+                                    Package size (cm)
+                                  </p>
+                                  <div className="mt-1 grid grid-cols-3 gap-2">
+                                    {(
+                                      [
+                                        ["width", "Width"],
+                                        ["height", "Height"],
+                                        ["length", "Length"],
+                                      ] as const
+                                    ).map(([key, label]) => (
+                                      <label
+                                        key={key}
+                                        className="block"
+                                        htmlFor={`order-${key}-${order.id}`}
+                                      >
+                                        <span className="mb-1 block text-[11px] font-medium text-zinc-500">
+                                          {label}
+                                        </span>
+                                        <input
+                                          id={`order-${key}-${order.id}`}
+                                          type="number"
+                                          inputMode="numeric"
+                                          min={1}
+                                          max={200}
+                                          step={1}
+                                          placeholder="cm"
+                                          value={
+                                            bookDimsByOrderId[order.id]?.[key] ??
+                                            ""
+                                          }
+                                          disabled={
+                                            bookBusyId === order.id ||
+                                            Boolean(order.parcel_consignment_id) ||
+                                            order.status ===
+                                              "delivery_request_placed"
+                                          }
+                                          onChange={(e) => {
+                                            const v = e.target.value;
+                                            setBookDimsByOrderId((prev) => ({
+                                              ...prev,
+                                              [order.id]: {
+                                                width:
+                                                  prev[order.id]?.width ?? "",
+                                                height:
+                                                  prev[order.id]?.height ?? "",
+                                                length:
+                                                  prev[order.id]?.length ?? "",
+                                                [key]: v,
+                                              },
+                                            }));
+                                            clearQuoteForOrder(order.id);
+                                          }}
+                                          className="w-full rounded-md border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 outline-none focus:border-violet-600 focus:ring-1 focus:ring-violet-600 disabled:opacity-60"
+                                        />
+                                      </label>
+                                    ))}
+                                  </div>
                                   {!order.parcel_consignment_id &&
                                   order.status !== "delivery_request_placed" ? (
                                     <p className="mt-1.5 text-xs leading-snug text-zinc-500">
-                                      Please enter the correct weight of the delivery item.
+                                      Weight and size are used for courier quotes
+                                      (esp. Pick & Drop).
                                     </p>
                                   ) : null}
                                   {!order.parcel_consignment_id &&
                                   order.status !== "delivery_request_placed" &&
-                                  bookQuoteByOrderId[order.id]?.finalPrice != null ? (
-                                    <div className="mt-3 space-y-1">
-                                      <div className="flex items-center gap-2 text-sm text-zinc-800">
-                                        <span>Delivery with</span>
-                                        <Image
-                                          src="/courier-logo/pathao.png"
-                                          alt="Pathao"
-                                          width={72}
-                                          height={22}
-                                          className="h-5 w-auto object-contain"
-                                        />
-                                      </div>
-                                      <p className="text-base font-semibold text-zinc-900">
-                                        NPR {bookQuoteByOrderId[order.id]?.finalPrice}
+                                  (bookQuoteByOrderId[order.id]?.quotes.length ?? 0) > 0 ? (
+                                    <div className="mt-3 space-y-2">
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                                        Delivery quotes
                                       </p>
+                                      {bookQuoteByOrderId[order.id]?.quotes.map((q) => {
+                                        const selected =
+                                          (selectedProviderByOrderId[order.id] ||
+                                            bookQuoteByOrderId[order.id]?.selectedProvider) ===
+                                          q.provider;
+                                        return (
+                                          <button
+                                            key={q.provider}
+                                            type="button"
+                                            disabled={!q.ok || bookBusyId === order.id}
+                                            onClick={() => {
+                                              if (!q.ok) return;
+                                              setSelectedProviderByOrderId((prev) => ({
+                                                ...prev,
+                                                [order.id]: q.provider,
+                                              }));
+                                              setBookQuoteByOrderId((prev) => {
+                                                const cur = prev[order.id];
+                                                if (!cur) return prev;
+                                                return {
+                                                  ...prev,
+                                                  [order.id]: {
+                                                    ...cur,
+                                                    selectedProvider: q.provider,
+                                                  },
+                                                };
+                                              });
+                                            }}
+                                            className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition ${
+                                              selected
+                                                ? "border-violet-500 bg-violet-50"
+                                                : "border-zinc-200 bg-white hover:border-zinc-300"
+                                            } disabled:opacity-60`}
+                                          >
+                                            <span className="flex min-w-0 flex-1 flex-col gap-1">
+                                              <span className="flex min-w-0 items-center gap-2">
+                                                {q.logoPath ? (
+                                                  <Image
+                                                    src={q.logoPath}
+                                                    alt={q.displayName}
+                                                    width={72}
+                                                    height={22}
+                                                    className="h-5 w-auto object-contain"
+                                                  />
+                                                ) : (
+                                                  <span className="text-sm font-medium text-zinc-800">
+                                                    {q.displayName}
+                                                  </span>
+                                                )}
+                                              </span>
+                                              {q.provider === "pickndrop" ? (
+                                                <span className="w-fit rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-amber-800 ring-1 ring-amber-200">
+                                                  Only for Kathmandu Sellers
+                                                </span>
+                                              ) : null}
+                                            </span>
+                                            <span className="shrink-0 text-sm font-semibold text-zinc-900">
+                                              {q.ok && q.finalPrice != null
+                                                ? `NPR ${q.finalPrice}`
+                                                : q.error
+                                                  ? "Unavailable"
+                                                  : "—"}
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
                                     </div>
                                   ) : null}
                                   {!order.parcel_consignment_id &&
@@ -903,7 +1177,10 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                                       type="button"
                                       disabled={bookBusyId === order.id}
                                       onClick={() => {
-                                        if (bookQuoteByOrderId[order.id]?.finalPrice != null) {
+                                        const hasOkQuote = (
+                                          bookQuoteByOrderId[order.id]?.quotes ?? []
+                                        ).some((q) => q.ok);
+                                        if (hasOkQuote) {
                                           void placeDelivery(order.id);
                                         } else {
                                           void bookDelivery(order.id);
@@ -912,10 +1189,14 @@ export function BusinessOrdersPanel({ businessId }: { businessId: string }) {
                                       className="mt-3 w-full rounded-md bg-violet-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:opacity-60"
                                     >
                                       {bookBusyId === order.id
-                                        ? bookQuoteByOrderId[order.id]?.finalPrice != null
+                                        ? (bookQuoteByOrderId[order.id]?.quotes ?? []).some(
+                                            (q) => q.ok
+                                          )
                                           ? "Placing…"
                                           : "Getting quote…"
-                                        : bookQuoteByOrderId[order.id]?.finalPrice != null
+                                        : (bookQuoteByOrderId[order.id]?.quotes ?? []).some(
+                                              (q) => q.ok
+                                            )
                                           ? "Place Delivery Order"
                                           : "Get quote"}
                                     </button>

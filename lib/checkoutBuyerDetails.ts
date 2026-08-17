@@ -4,8 +4,7 @@ export type CheckoutBuyerDetails = {
   customerName: string;
   phone: string;
   address: string;
-  /** @deprecated Kept for older stored payloads; no longer collected in checkout. */
-  city?: string;
+  city: string;
 };
 
 const STORAGE_KEY = "kinmel_checkout_buyer_details_v1";
@@ -20,6 +19,7 @@ export function loadCheckoutBuyerDetails(): CheckoutBuyerDetails | null {
       customerName: String(parsed.customerName ?? "").trim(),
       phone: String(parsed.phone ?? "").trim(),
       address: String(parsed.address ?? "").trim(),
+      city: String(parsed.city ?? "").trim(),
     };
   } catch {
     return null;
@@ -33,8 +33,14 @@ export function saveCheckoutBuyerDetails(details: CheckoutBuyerDetails): void {
       customerName: details.customerName.trim(),
       phone: details.phone.trim(),
       address: details.address.trim(),
+      city: details.city.trim(),
     };
-    if (!payload.customerName && !payload.phone && !payload.address) {
+    if (
+      !payload.customerName &&
+      !payload.phone &&
+      !payload.address &&
+      !payload.city
+    ) {
       return;
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));

@@ -43,3 +43,7 @@ next-env.d.ts
 
 # Keep master recordings local; site uses compressed mp4s
 /public/videos/*.original.mp4
+
+android/keystore.properties
+android/app/*.keystore
+!android/app/debug.keystore
