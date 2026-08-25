@@ -12,6 +12,7 @@ export type ProductVariant = {
 export type Product = {
   id: string;
   name: string;
+  description?: string | null;
   price: number;
   currency: string;
   imageUrl?: string;

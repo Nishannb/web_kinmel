@@ -303,6 +303,7 @@ export default function LiveWorkspacePage() {
 
   const onCreateProduct = async (input: {
     name: string;
+    description?: string;
     price: number;
     buyCode: string;
     stockQuantity: number;

@@ -21,6 +21,7 @@ import { getSafeSession, isRecoverableAuthError, clearStaleAuthSession } from "@
 import { uploadProductImageToR2 } from "@/lib/uploadProductImageR2";
 import { validateBuyCode } from "@/lib/buyCode";
 import { saveStreamConfig } from "@/lib/backendClient";
+import { claimNepalOtp } from "@/lib/otpClient";
 
 function requireValidBuyCode(raw: string): string {
   const result = validateBuyCode(raw);
@@ -37,6 +38,7 @@ type CreateEventInput = {
 
 type CreateProductInput = {
   name: string;
+  description?: string;
   price: number;
   buyCode: string;
   stockQuantity: number;
@@ -49,11 +51,22 @@ type CreateProductInput = {
 
 type UpdateCatalogProductInput = {
   name: string;
+  description?: string;
   price: number;
   buyCode: string;
   stockQuantity: number;
   variants?: Array<{ label: string; stockQuantity: number }>;
   imageFile?: File | null;
+};
+
+type RegisterInput = {
+  email: string;
+  password: string;
+  shopName: string;
+  phoneE164: string;
+  phoneCountryIso: string;
+  /** When true, claim Nepal OTP after signup (must already be verified). */
+  claimNepalOtpAfterSignup?: boolean;
 };
 
 type AppContextValue = {
@@ -65,7 +78,7 @@ type AppContextValue = {
   isReady: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
   createEvent: (input: CreateEventInput) => Promise<string>;
   deleteEvent: (eventId: string) => Promise<void>;
@@ -161,7 +174,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .order("created_at", { ascending: false }),
       supabase
         .from("products")
-        .select("id,name,price,currency,image_url,product_url,sku,updated_at,stock_quantity")
+        .select("id,name,description,price,currency,image_url,product_url,sku,updated_at,stock_quantity")
         .eq("business_id", nextBusinessId)
         .eq("is_active", true)
         .order("updated_at", { ascending: false }),
@@ -179,6 +192,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const nextCatalogProducts: Product[] = (productsRes.data ?? []).map((row) => ({
       id: String(row.id),
       name: String(row.name),
+      description: row.description != null ? String(row.description) : null,
       price: Number(row.price ?? 0),
       currency: String(row.currency ?? "NPR"),
       imageUrl: row.image_url ?? undefined,
@@ -378,12 +392,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const register = useCallback(
-    async (email: string, password: string) => {
+    async (input: RegisterInput) => {
       if (!isReady) return;
-      const result = await supabase.auth.signUp({ email, password });
+      const shopName = input.shopName.trim();
+      if (!shopName) {
+        throw new Error("Please enter a shop name.");
+      }
+      const result = await supabase.auth.signUp({
+        email: input.email,
+        password: input.password,
+        options: {
+          data: {
+            phone: input.phoneE164,
+            shop_name: shopName,
+          },
+        },
+      });
       if (result.error) {
         throw result.error;
       }
+
+      let authUserId = result.data.user?.id ?? "";
+      if (!authUserId) {
+        const signedIn = await supabase.auth.signInWithPassword({
+          email: input.email,
+          password: input.password,
+        });
+        if (signedIn.error) {
+          throw signedIn.error;
+        }
+        authUserId = signedIn.data.user.id;
+      }
+
+      const { data: businessId, error: businessError } = await supabase.rpc(
+        "register_my_business",
+        {
+          p_business_name: shopName,
+          p_phone: input.phoneE164,
+          p_email: null,
+          p_phone_country_code: input.phoneCountryIso,
+        }
+      );
+      if (businessError) {
+        throw businessError;
+      }
+      if (typeof businessId !== "string" || !businessId) {
+        throw new Error("Business registration did not return an id");
+      }
+
+      if (input.claimNepalOtpAfterSignup) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (accessToken) {
+          await claimNepalOtp(input.phoneE164, accessToken);
+        }
+      }
+
       await refreshData();
     },
     [isReady, refreshData]
@@ -495,6 +559,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .insert({
           business_id: businessId,
           name: input.name,
+          description: (input.description || "").trim() || null,
           price: input.price,
           currency: "NPR",
           image_url: imageUrl,
@@ -614,6 +679,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .insert({
           business_id: businessId,
           name: input.name,
+          description: (input.description || "").trim() || null,
           price: input.price,
           currency: "NPR",
           image_url: imageUrl,
@@ -672,6 +738,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const patch: Record<string, unknown> = {
         name: input.name.trim(),
+        description: (input.description || "").trim() || null,
         price: input.price,
         sku: buyCode,
         stock_quantity: Math.floor(stockQuantity),

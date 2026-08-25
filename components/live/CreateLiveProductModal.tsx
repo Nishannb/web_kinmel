@@ -9,6 +9,7 @@ type Props = {
   onClose: () => void;
   onSubmit: (input: {
     name: string;
+    description?: string;
     price: number;
     buyCode: string;
     stockQuantity: number;
@@ -27,6 +28,7 @@ export function CreateLiveProductModal({
   onSubmit,
 }: Props) {
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [buyCode, setBuyCode] = useState("");
   const [stockQuantity, setStockQuantity] = useState("1");
@@ -37,6 +39,7 @@ export function CreateLiveProductModal({
   useEffect(() => {
     if (!open) {
       setName("");
+      setDescription("");
       setPrice("");
       setBuyCode("");
       setStockQuantity("1");
@@ -86,6 +89,7 @@ export function CreateLiveProductModal({
     setLocalError(null);
     await onSubmit({
       name: name.trim(),
+      description: description.trim(),
       price: parsedPrice,
       buyCode: buyCode.trim(),
       stockQuantity: parsedStock,
@@ -134,6 +138,14 @@ export function CreateLiveProductModal({
             onChange={(event) => setName(event.target.value)}
             required
             placeholder="Product name"
+            className={inputClass}
+          />
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={3}
+            maxLength={4000}
+            placeholder="Description (optional)"
             className={inputClass}
           />
           <input

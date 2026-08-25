@@ -1,5 +1,5 @@
-/** Set true to restore public self-serve registration on the website. */
-export const PUBLIC_REGISTRATION_ENABLED = false;
+/** Public self-serve registration on the website (Meta app approved). */
+export const PUBLIC_REGISTRATION_ENABLED = true;
 
 export const KINMEL_ACCESS_WHATSAPP_E164 = "9779769498715";
 

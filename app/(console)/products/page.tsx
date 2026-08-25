@@ -48,6 +48,7 @@ export default function ProductsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [buyCode, setBuyCode] = useState("");
   const [stockQuantity, setStockQuantity] = useState("1");
@@ -77,6 +78,7 @@ export default function ProductsPage() {
 
   const resetForm = () => {
     setName("");
+    setDescription("");
     setPrice("");
     setBuyCode("");
     setStockQuantity("1");
@@ -97,6 +99,7 @@ export default function ProductsPage() {
     setError(null);
     setEditingProduct(product);
     setName(product.name);
+    setDescription((product.description || "").trim());
     setPrice(String(product.price ?? ""));
     setBuyCode((product.buyCode || "").trim());
     setImageFile(null);
@@ -168,6 +171,7 @@ export default function ProductsPage() {
       if (editingProduct) {
         await updateCatalogProduct(editingProduct.id, {
           name: n,
+          description: description.trim(),
           price: p,
           buyCode: code,
           stockQuantity: stock,
@@ -177,6 +181,7 @@ export default function ProductsPage() {
       } else {
         await createCatalogProduct({
           name: n,
+          description: description.trim(),
           price: p,
           buyCode: code,
           stockQuantity: stock,
@@ -409,6 +414,20 @@ export default function ProductsPage() {
                   placeholder="Product name"
                   className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-500"
                 />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Description</span>
+                <textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  rows={4}
+                  maxLength={4000}
+                  placeholder="Materials, fit, what’s included…"
+                  className="w-full resize-y rounded-md border border-zinc-300 px-3 py-2 outline-none focus:border-zinc-500"
+                />
+                <span className="text-xs text-zinc-500">
+                  Optional — shown on the buyer product page.
+                </span>
               </label>
               <label className="block space-y-1">
                 <span className="text-sm font-medium">Price (NPR)</span>

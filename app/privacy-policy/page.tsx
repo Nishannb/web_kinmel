@@ -10,13 +10,26 @@ export const metadata: Metadata = buildPageMetadata({
 
 export default function PrivacyPolicyPage() {
   return (
-    <LegalPageShell title="Privacy Policy" updated="August 3, 2026">
+    <LegalPageShell title="Privacy Policy" updated="August 24, 2026">
+      <section className="space-y-3">
+        <h2>Who we are</h2>
+        <p>
+          <strong>Kinmel</strong> is the live shopping and social selling product operated by{" "}
+          <strong>Naman Technologies Private Limited</strong> (“Kinmel,” “we,” “us”), a company
+          registered in Nepal. This Privacy Policy explains how we collect, use, and protect
+          information when you use the Kinmel mobile app and website.
+        </p>
+      </section>
+
       <section className="space-y-3">
         <h2>Overview</h2>
         <p>
-          Kinmel provides a mobile app and website that help sellers run shoppable Instagram Live
-          streams and Reels. Buyers can comment buy codes on Instagram and complete checkout on the
-          web. This policy explains what information we collect and how we use it.
+          Kinmel is a live shopping and social selling platform for merchants and creators. Our
+          clients are businesses that sell products through Instagram and Facebook. They connect
+          their own Instagram professional accounts and Facebook Pages inside Kinmel so they can run
+          selling, customer conversations, and content publishing from one place. Buyers can comment
+          product buy codes and complete checkout on the web. This policy explains what information
+          we collect and how we use it.
         </p>
       </section>
 
@@ -27,11 +40,16 @@ export default function PrivacyPolicyPage() {
           <li>Product catalog, prices, images, orders, and live-event data you create in Kinmel.</li>
           <li>
             Instagram and Facebook account information when you connect those accounts, including
-            profile identifiers and permissions you grant.
+            account identity, username/profile identifiers, and the permissions you grant — used to
+            confirm the correct account is connected and to keep the connection working.
           </li>
           <li>
-            Instagram comments and related metadata delivered to us via Meta webhooks when viewers
-            interact with your live or recorded content.
+            Comments and related metadata on your Instagram and Facebook posts and live videos
+            (including Meta webhooks and related APIs) when viewers interact with your content.
+          </li>
+          <li>
+            Message-related context needed to help you send order and product information through
+            Instagram or Messenger on your behalf, when you have authorized Kinmel to do so.
           </li>
           <li>
             Usage and analytics data from the Kinmel app and website (e.g. pages viewed, features
@@ -46,16 +64,19 @@ export default function PrivacyPolicyPage() {
         <ul>
           <li>Operate your seller account, catalog, checkout links, and order management.</li>
           <li>
-            Receive comment notifications from Meta when viewers comment buy codes on your Instagram
-            Live or Reels.
+            <strong>Customer conversations:</strong> Read comments on your posts and live videos and
+            show them in Kinmel so you can respond to buyers quickly. When a buyer comments with a
+            product buy code, help you send order and product information through Instagram or
+            Messenger messages.
           </li>
           <li>
-            Send Instagram direct messages on your behalf (for example, checkout links in response to
-            buy-code comments), when you have authorized Kinmel to do so.
+            <strong>Content publishing:</strong> When you choose to post from Kinmel, publish product
+            videos and Reels to your connected Instagram account and/or Facebook Page.
           </li>
           <li>
-            Publish Reels and related content to Instagram that you create or schedule through the
-            Kinmel app, when you have authorized us to do so.
+            <strong>Account connection:</strong> Use basic profile and account information to confirm
+            the correct Instagram/Facebook account is connected and to keep that connection working
+            so the features above continue to function.
           </li>
           <li>Process payments and fulfil orders placed through Kinmel checkout.</li>
           <li>
@@ -67,12 +88,40 @@ export default function PrivacyPolicyPage() {
       </section>
 
       <section className="space-y-3">
-        <h2>Instagram &amp; Facebook (Meta)</h2>
+        <h2>Instagram &amp; Facebook (Meta) Platform Data</h2>
         <p>
-          To use live selling, comment-to-buy, and Reels publishing, you must connect your Instagram
-          and Facebook accounts and grant Kinmel the permissions Meta requires. Those permissions
-          allow us to receive webhook notifications, send DMs on your behalf, and post content you
-          create in Kinmel. Meta&apos;s own policies also apply to data handled through their
+          To use live shopping, comment-to-buy, customer conversations, and content publishing, you
+          must connect your Instagram professional account and/or Facebook Page and grant Kinmel the
+          permissions Meta requires. We use Meta Platform Data (any information we obtain from Meta)
+          only on behalf of the client who authorized Kinmel, and only to provide that client’s
+          service.
+        </p>
+        <p>Specifically, Platform Data is used to:</p>
+        <ul>
+          <li>
+            Show you comments from your Instagram/Facebook posts and live videos so you can manage
+            buyer conversations in Kinmel.
+          </li>
+          <li>
+            Send Instagram direct messages or Messenger messages on your behalf (for example,
+            checkout links or product information after a buy-code comment), when you have authorized
+            Kinmel to do so.
+          </li>
+          <li>
+            Publish Reels and related product videos you create or schedule in Kinmel to your
+            Instagram account and/or Facebook Page, when you choose to post.
+          </li>
+          <li>
+            Confirm account identity (such as account IDs and usernames) and maintain a working
+            connection for the features you requested.
+          </li>
+        </ul>
+        <p>
+          Access is limited to what is needed to operate the live shopping and comment-to-buy
+          features you requested. We do <strong>not</strong> use Platform Data to build unrelated
+          products, we do <strong>not</strong> sell Platform Data, and we do <strong>not</strong>{" "}
+          access a client’s Instagram or Facebook data unless that client has connected their account
+          and granted permission. Meta’s own policies also apply to data handled through their
           platforms.
         </p>
       </section>
@@ -80,12 +129,16 @@ export default function PrivacyPolicyPage() {
       <section className="space-y-3">
         <h2>Sharing with third parties</h2>
         <p>
-          We do <strong>not</strong> sell your personal information. We do <strong>not</strong>{" "}
-          share your data with unrelated third parties for their marketing or advertising.
+          We do <strong>not</strong> sell your personal information or Meta Platform Data. We do{" "}
+          <strong>not</strong> share your data with unrelated third parties for their marketing or
+          advertising.
         </p>
         <p>We only disclose information where necessary to run the service, such as:</p>
         <ul>
-          <li>Meta (Instagram/Facebook), when you connect your account and use integrated features.</li>
+          <li>
+            Meta (Instagram/Facebook), when you connect your account and use integrated features on
+            your behalf.
+          </li>
           <li>Payment providers (e.g. eSewa, Khalti) to process buyer payments.</li>
           <li>Infrastructure providers (hosting, storage) that process data strictly on our behalf.</li>
           <li>Analytics tools used to measure app and website usage and improve Kinmel.</li>
@@ -140,7 +193,9 @@ export default function PrivacyPolicyPage() {
           <a href="/clearmydata" className="font-medium text-violet-700 hover:underline">
             Clear my data
           </a>{" "}
-          page for how to submit a request.
+          page for how to submit a request. You may also disconnect Instagram or Facebook in Kinmel
+          or revoke access in Meta settings; related Platform Data access for those features will
+          stop.
         </p>
       </section>
 

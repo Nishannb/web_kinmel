@@ -9,7 +9,6 @@ import { PhoneFrame } from "@/components/landing/PhoneFrame";
 import { StoreDownloadButtons } from "@/components/landing/StoreDownloadButtons";
 import {
   KINMEL_CONTACT,
-  PUBLIC_REGISTRATION_ENABLED,
 } from "@/lib/siteConfig";
 
 const HOW_STEPS = [
@@ -64,7 +63,7 @@ function SiteHeader() {
                 href="/register"
                 className="rounded-full border border-zinc-300 bg-white px-2.5 py-2 text-xs font-semibold text-zinc-900 transition hover:bg-zinc-50 sm:px-4 sm:text-sm"
               >
-                {PUBLIC_REGISTRATION_ENABLED ? "Sign up" : "Request Kinmel Access"}
+                Sign up
               </Link>
             </>
           )}
@@ -283,7 +282,7 @@ export default function HomePage() {
                   href="/register"
                   className="inline-flex rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-black/85"
                 >
-                  Request Kinmel Access
+                  Register
                 </Link>
                 <Link
                   href="/login"
@@ -331,7 +330,7 @@ export default function HomePage() {
             <ul className="mt-3 space-y-2 text-sm km-muted-on-black">
               <li>
                 <Link href="/register" className="hover:text-white">
-                  Request Kinmel Access
+                  Register
                 </Link>
               </li>
               <li>

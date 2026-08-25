@@ -10,33 +10,40 @@ export const metadata: Metadata = buildPageMetadata({
 
 export default function TermsPage() {
   return (
-    <LegalPageShell title="Terms of Service" updated="July 21, 2026">
+    <LegalPageShell title="Terms of Service" updated="August 24, 2026">
       <section className="space-y-3">
         <h2>Agreement</h2>
         <p>
           By creating an account or using the Kinmel mobile app or website, you agree to these Terms
-          of Service. If you do not agree, do not use Kinmel.
+          of Service. If you do not agree, do not use Kinmel. <strong>Kinmel</strong> is the product
+          operated by <strong>Naman Technologies Private Limited</strong> (“Kinmel,” “we,” “us”),
+          registered in Nepal.
         </p>
       </section>
 
       <section className="space-y-3">
         <h2>Sellers and buyers</h2>
         <p>
-          In these Terms, <strong>sellers</strong> are people or businesses who use the Kinmel app
-          and website to list and sell products online. <strong>Buyers</strong> are people who
-          purchase from sellers through <strong>kinmel.shop</strong> and the Kinmel app.
+          In these Terms, <strong>sellers</strong> (also called clients or merchants) are people or
+          businesses who use the Kinmel app and website to list and sell products online through
+          Instagram and Facebook. <strong>Buyers</strong> are people who purchase from sellers
+          through <strong>kinmel.shop</strong> and the Kinmel app.
         </p>
       </section>
 
       <section className="space-y-3">
         <h2>Service</h2>
         <p>
-          Kinmel helps sellers offer products during Instagram Live streams and Reels. Sellers use
-          the Kinmel iOS app to go live or record shoppable video with product overlays, manage a
-          catalog on the web, and send buyers to a hosted checkout page. Viewers comment buy codes on
-          Instagram; Kinmel may respond with checkout links on the seller&apos;s behalf when
-          connected and authorized. Kinmel also partners with logistics providers so sellers can use
-          in-house logistics integration to book and manage deliveries.
+          Kinmel is a live shopping and social selling platform for merchants and creators. Sellers
+          connect their own Instagram professional accounts and Facebook Pages inside Kinmel so they
+          can run selling, customer conversations, and content publishing from one place. Sellers use
+          the Kinmel app to go live or record shoppable video with product overlays, manage a catalog,
+          and send buyers to a hosted checkout page. Viewers comment buy codes on Instagram or
+          Facebook; Kinmel may help the seller respond with order and product information (including
+          checkout links) through Instagram or Messenger when connected and authorized. When the
+          seller chooses to post from Kinmel, we may publish product videos and Reels to that
+          seller’s Instagram account and/or Facebook Page. Kinmel also partners with logistics
+          providers so sellers can use in-house logistics integration to book and manage deliveries.
         </p>
       </section>
 
@@ -53,14 +60,34 @@ export default function TermsPage() {
       <section className="space-y-3">
         <h2>Instagram &amp; Facebook connection</h2>
         <p>
-          Certain features require you to connect your Instagram and Facebook accounts and grant
-          Kinmel third-party access through Meta. By connecting, you authorize Kinmel to:
+          Certain features require you to connect your Instagram professional account and/or Facebook
+          Page and grant Kinmel third-party access through Meta. By connecting, you authorize Kinmel
+          to use Meta Platform Data only on your behalf and only to provide your service, including
+          to:
         </p>
         <ul>
-          <li>Receive comment and related webhook notifications from Meta for your content.</li>
-          <li>Send Instagram direct messages on your behalf (e.g. checkout links to commenters).</li>
-          <li>Publish Reels and related media you create in the Kinmel app to your Instagram account.</li>
+          <li>
+            <strong>Customer conversations:</strong> Read comments on your posts and live videos and
+            show them in Kinmel so you can respond to buyers quickly; when a buyer comments with a
+            product buy code, help you send order and product information through Instagram or
+            Messenger messages.
+          </li>
+          <li>
+            <strong>Content publishing:</strong> When you choose to post from Kinmel, publish product
+            videos and Reels to your Instagram account and/or Facebook Page.
+          </li>
+          <li>
+            <strong>Account connection:</strong> Use basic profile and account information (such as
+            account identity and username) to confirm the correct Instagram/Facebook account is
+            connected and to keep the connection working so the features above continue to function.
+          </li>
         </ul>
+        <p>
+          Access is limited to what is needed to operate the live shopping and comment-to-buy
+          features you requested. Kinmel does not use Platform Data to build unrelated products, does
+          not sell Platform Data, and does not access your Instagram or Facebook data unless you have
+          connected your account and granted permission.
+        </p>
         <p>
           You must comply with Meta&apos;s Platform Terms, Community Guidelines, and Commerce
           Policies. Kinmel is not responsible for actions Meta takes on your account. You may revoke
@@ -116,14 +143,17 @@ export default function TermsPage() {
         </p>
         <p>
           Seller and buyer information may be shared with third parties such as logistics providers
-          and payment providers as required to operate checkout, payments, and delivery. By using
-          Kinmel, you acknowledge that Kinmel owns the rights to use platform data in whatever
-          fashion it deems necessary to operate, improve, secure, and enforce the service, subject
-          to applicable law and our{" "}
+          and payment providers as required to operate checkout, payments, and delivery. We use
+          seller and buyer information, and Meta Platform Data where applicable, only as needed to
+          operate, improve, secure, and enforce the Kinmel service for the features you use —
+          including live shopping, comment-to-buy, customer conversations, content publishing,
+          checkout, payments, and delivery — subject to applicable law, Meta’s Platform Terms, and
+          our{" "}
           <a href="/privacy-policy" className="font-medium text-violet-700 hover:underline">
             Privacy Policy
           </a>
-          .
+          . We do not sell Platform Data or personal information, and we do not use Meta Platform
+          Data to build unrelated products.
         </p>
       </section>
 
@@ -144,7 +174,8 @@ export default function TermsPage() {
           Kinmel&apos;s software, branding, and documentation are owned by Naman Technologies Private
           Limited. You retain ownership of your product listings, images, and video content. You
           grant us a limited license to host, process, and display your content solely to operate
-          the service (including publishing to Instagram when you request it).
+          the service (including publishing to Instagram and/or your Facebook Page when you request
+          it).
         </p>
       </section>
 
@@ -152,8 +183,8 @@ export default function TermsPage() {
         <h2>Disclaimer</h2>
         <p>
           Kinmel is provided &quot;as is&quot; and &quot;as available.&quot; We do not guarantee
-          uninterrupted live streaming, Instagram API availability, payment or logistics partner
-          availability, or specific sales results. To the fullest extent permitted by law, we
+          uninterrupted live streaming, Instagram or Facebook API availability, payment or logistics
+          partner availability, or specific sales results. To the fullest extent permitted by law, we
           disclaim warranties of merchantability, fitness for a particular purpose, and
           non-infringement.
         </p>
@@ -164,10 +195,10 @@ export default function TermsPage() {
         <p>
           To the fullest extent permitted by law, Naman Technologies Private Limited and Kinmel are
           not liable for indirect, incidental, special, or consequential damages, lost profits, or
-          loss of data arising from your use of the service, Instagram/Meta outages, payment or
-          logistics partner issues, or buyer disputes. Our total liability for any claim related to
-          the service is limited to the fees you paid to Kinmel in the twelve (12) months before the
-          claim, or NPR 10,000 if no fees were paid, whichever is greater.
+          loss of data arising from your use of the service, Instagram/Facebook/Meta outages, payment
+          or logistics partner issues, or buyer disputes. Our total liability for any claim related
+          to the service is limited to the fees you paid to Kinmel in the twelve (12) months before
+          the claim, or NPR 10,000 if no fees were paid, whichever is greater.
         </p>
       </section>
 
@@ -188,8 +219,8 @@ export default function TermsPage() {
           <a href="/privacy-policy" className="font-medium text-violet-700 hover:underline">
             Privacy Policy
           </a>{" "}
-          explains how we handle personal data, including analytics used to improve the app and
-          website.
+          explains how we handle personal data and Meta Platform Data, including analytics used to
+          improve the app and website.
         </p>
       </section>
 

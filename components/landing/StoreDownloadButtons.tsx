@@ -99,7 +99,7 @@ export function StoreDownloadButtons({
             : "inline-flex w-full items-center justify-center rounded-2xl border border-white/25 bg-transparent px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 sm:w-auto sm:min-w-[11.5rem]"
         }
       >
-        Request Kinmel Access
+        Register
       </Link>
       <p
         className={
@@ -108,7 +108,7 @@ export function StoreDownloadButtons({
             : "max-w-md text-sm leading-relaxed text-zinc-300"
         }
       >
-        Kinmel is an invite-only app. Apply for access to get started.
+        Create a free seller account, then download the app to go live.
       </p>
     </div>
   );

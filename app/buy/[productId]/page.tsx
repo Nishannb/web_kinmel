@@ -52,7 +52,7 @@ function submitEsewaPaymentGateway(res: EsewaInitResponse) {
   form.submit();
 }
 
-const COD_FLAT_FEE = 0;
+const COD_FLAT_FEE = 5;
 
 type CheckoutPhase = "review" | "details" | "payment";
 
@@ -339,8 +339,8 @@ function BuyProductContent() {
   useEffect(() => {
     if (!product) return;
     if (!isNepalRupeesCurrency(product.currency)) {
-      if (paymentMethod === "khalti") {
-        setPaymentMethod("esewa");
+      if (paymentMethod === "khalti" || paymentMethod === "esewa") {
+        setPaymentMethod("cod");
       }
     }
   }, [product, paymentMethod]);
@@ -773,6 +773,11 @@ function BuyProductContent() {
                           <h1 className="truncate text-sm font-bold text-zinc-900">
                             {product.name}
                           </h1>
+                          {product.description?.trim() ? (
+                            <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed text-zinc-600">
+                              {product.description.trim()}
+                            </p>
+                          ) : null}
                           {trackedStock != null ? (
                             <p className={`mt-0.5 flex items-center gap-1 text-[11px] font-medium ${accent.success}`}>
                               <IconCheck className="size-3" />
@@ -1081,39 +1086,7 @@ function BuyProductContent() {
                     </div>
                   </button>
 
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={paymentMethod === "esewa"}
-                    onClick={() => {
-                      setPaymentMethod("esewa");
-                      setFormError(null);
-                    }}
-                    className={paymentCardClass(paymentMethod === "esewa")}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={[
-                          "flex h-4 w-4 shrink-0 rounded-full border-2",
-                          paymentMethod === "esewa" ? `${accent.border} bg-violet-600` : "border-zinc-300 bg-white",
-                        ].join(" ")}
-                        aria-hidden
-                      />
-                      <div className="min-w-0 flex-1">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src="/payment-app-logo/esewa_logo.png"
-                          alt=""
-                          className="h-8 w-auto object-contain"
-                        />
-                        <p className="mt-1.5 text-sm font-bold text-zinc-900">Pay with eSewa</p>
-                        <p className="text-[11px] text-zinc-500">Secure eSewa wallet payment</p>
-                      </div>
-                      <p className={`shrink-0 text-base font-bold ${accent.text}`}>
-                        {formatStorefrontPrice(esewaLineTotal, priceCcy)}
-                      </p>
-                    </div>
-                  </button>
+                  {/* eSewa checkout hidden until integration is ready for storefront. */}
 
                   <button
                     type="button"

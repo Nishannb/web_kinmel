@@ -5,9 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { KinmelBrandLink } from "@/components/KinmelLogo";
 import { RegisterFormLegacy } from "@/components/RegisterFormLegacy";
-import { RequestKinmelAccessCard } from "@/components/RequestKinmelAccessCard";
 import { useAppState } from "@/components/AppProvider";
-import { PUBLIC_REGISTRATION_ENABLED } from "@/lib/siteConfig";
 
 function safeNextPath(): string {
   if (typeof window === "undefined") return "/live-selling";
@@ -40,19 +38,7 @@ export default function RegisterPage() {
             ← Back to home
           </Link>
         </div>
-        {PUBLIC_REGISTRATION_ENABLED ? (
-          <RegisterFormLegacy />
-        ) : (
-          <div className="mt-6">
-            <RequestKinmelAccessCard />
-            <p className="mt-6 text-center text-sm text-zinc-600">
-              Already have an account?{" "}
-              <Link href="/login" className="font-semibold text-violet-700 underline">
-                Log in
-              </Link>
-            </p>
-          </div>
-        )}
+        <RegisterFormLegacy />
       </div>
     </div>
   );
