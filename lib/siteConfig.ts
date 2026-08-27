@@ -42,8 +42,9 @@ export function buildKinmelAccessWhatsAppUrl(request: KinmelAccessRequest): stri
 export const KINMEL_APP_STORE_URL =
   "https://apps.apple.com/py/app/kinmel/id6784923606?l=en-GB";
 
-/** Google Play is not live yet — keep as null and show Coming Soon in UI. */
-export const KINMEL_PLAY_STORE_URL: string | null = null;
+/** Direct Android APK until the Play Store listing is live. */
+export const KINMEL_ANDROID_APK_URL = "/apk/kinmel.apk";
+export const KINMEL_ANDROID_APK_FILENAME = "kinmel.apk";
 
 export const KINMEL_CONTACT = {
   phonesDisplay: "+977 9714535269, +977 9769498715",

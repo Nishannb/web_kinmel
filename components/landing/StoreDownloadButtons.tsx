@@ -1,8 +1,9 @@
 import Link from "next/link";
 
 import {
+  KINMEL_ANDROID_APK_FILENAME,
+  KINMEL_ANDROID_APK_URL,
   KINMEL_APP_STORE_URL,
-  KINMEL_PLAY_STORE_URL,
 } from "@/lib/siteConfig";
 
 type StoreDownloadButtonsProps = {
@@ -39,11 +40,6 @@ export function StoreDownloadButtons({
       ? "border-black/15 bg-black text-white hover:bg-black/90"
       : "border-white/20 bg-white text-black hover:bg-[#f7f1ea]";
 
-  const disabledShell =
-    tone === "light"
-      ? "border-black/20 bg-black/10 text-black/55"
-      : "border-white/15 bg-white/10 text-white/55";
-
   return (
     <div className={`flex flex-col gap-3 ${className}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -62,33 +58,19 @@ export function StoreDownloadButtons({
           </span>
         </a>
 
-        {KINMEL_PLAY_STORE_URL ? (
-          <a
-            href={KINMEL_PLAY_STORE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`inline-flex min-w-[11.5rem] items-center gap-3 rounded-2xl border px-4 py-3 transition ${shell}`}
-          >
-            <PlayIcon className="h-7 w-7 shrink-0" />
-            <span className="text-left leading-tight">
-              <span className="block text-[10px] uppercase tracking-wide opacity-80">
-                Get it on
-              </span>
-              <span className="block text-sm font-semibold">Google Play</span>
+        <a
+          href={KINMEL_ANDROID_APK_URL}
+          download={KINMEL_ANDROID_APK_FILENAME}
+          className={`inline-flex min-w-[13.5rem] items-center gap-3 rounded-2xl border px-4 py-3 transition ${shell}`}
+        >
+          <PlayIcon className="h-7 w-7 shrink-0" />
+          <span className="text-left leading-tight">
+            <span className="block text-[10px] uppercase tracking-wide opacity-80">
+              Google Play
             </span>
-          </a>
-        ) : (
-          <span
-            className={`inline-flex min-w-[11.5rem] cursor-default items-center gap-3 rounded-2xl border px-4 py-3 ${disabledShell}`}
-            title="Google Play coming soon"
-          >
-            <PlayIcon className="h-7 w-7 shrink-0 opacity-80" />
-            <span className="text-left leading-tight">
-              <span className="block text-[10px] uppercase tracking-wide">Google Play</span>
-              <span className="block text-sm font-semibold">Coming Soon</span>
-            </span>
+            <span className="block text-sm font-semibold">Download Kinmel APK</span>
           </span>
-        )}
+        </a>
       </div>
 
       <Link

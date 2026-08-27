@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAppState } from "@/components/AppProvider";
 import { KinmelBrandLink } from "@/components/KinmelLogo";
 import { PhoneFrame } from "@/components/landing/PhoneFrame";
+import { PhoneSketchCallout } from "@/components/landing/PhoneSketchCallout";
 import { StoreDownloadButtons } from "@/components/landing/StoreDownloadButtons";
 import {
   KINMEL_CONTACT,
@@ -80,7 +81,7 @@ export default function HomePage() {
 
       {/* Section 1 — White hero (Whatnot yellow → Kinmel white) */}
       <section
-        className="relative overflow-hidden"
+        className="relative overflow-x-hidden"
         style={{ backgroundColor: "#ffffff", color: "#111111" }}
       >
         <div
@@ -93,15 +94,27 @@ export default function HomePage() {
         />
         <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8 lg:py-16">
           {/* Phone cluster */}
-          <div className="relative mx-auto flex w-full max-w-md items-end justify-center lg:max-w-none lg:justify-start">
-            <div className="absolute left-0 top-8 hidden w-[38%] -rotate-6 opacity-90 sm:block lg:left-2">
-              <PhoneFrame
-                posterSrc="/kinmel_preview/product.png"
-                alt="Kinmel product catalog"
-                floatClassName="km-float-delayed"
+          <div className="relative mx-auto flex w-full max-w-md items-end justify-center pt-12 sm:max-w-lg sm:pl-10 sm:pt-14 lg:max-w-none lg:justify-start lg:pl-4 lg:pt-16">
+            <div className="absolute left-0 top-14 hidden w-[38%] sm:block lg:left-2 lg:top-16">
+              <PhoneSketchCallout
+                lines={["Facebook", "live"]}
+                side="left"
+                className="-left-2 -top-11 sm:-left-4 sm:-top-12"
               />
+              <div className="-rotate-6 opacity-90">
+                <PhoneFrame
+                  posterSrc="/kinmel_preview/fblive.png"
+                  alt="Facebook Live via Kinmel"
+                  floatClassName="km-float-delayed"
+                />
+              </div>
             </div>
             <div className="relative z-10 w-[62%] max-w-[260px] sm:w-[52%] sm:max-w-[280px]">
+              <PhoneSketchCallout
+                lines={["Instagram", "Live"]}
+                side="right"
+                className="left-1/2 -top-10 -translate-x-1/2 sm:left-auto sm:right-[-6%] sm:top-[-3.4rem] sm:translate-x-0"
+              />
               <PhoneFrame
                 videoSrc="/videos/instalive.mp4"
                 posterSrc="/videos/instalive-poster.jpg"
@@ -274,7 +287,7 @@ export default function HomePage() {
               </h3>
               <p className="mt-3 max-w-xl text-base leading-relaxed km-muted-on-white">
                 Use Kinmel for your catalog, lives, and shoppable posts at no monthly fee.
-                Online payments via <strong>Khalti</strong> and <strong>eSewa</strong> have a{" "}
+                Online payments via <strong>Khalti</strong> have a{" "}
                 <strong>2.9% commission</strong>. <strong>COD orders have 0% commission</strong>.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">

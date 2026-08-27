@@ -23,6 +23,23 @@ const nextConfig = {
       tailwindcss: path.join(webRoot, "node_modules/tailwindcss"),
     },
   },
+  async headers() {
+    return [
+      {
+        source: "/apk/:path*",
+        headers: [
+          {
+            key: "Content-Type",
+            value: "application/vnd.android.package-archive",
+          },
+          {
+            key: "Content-Disposition",
+            value: 'attachment; filename="kinmel.apk"',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
