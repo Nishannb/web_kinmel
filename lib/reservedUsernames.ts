@@ -9,6 +9,7 @@ export const RESERVED_STOREFRONT_USERNAMES = new Set([
   "live-selling",
   "login",
   "orders",
+  "pingdm",
   "privacy-policy",
   "products",
   "register",

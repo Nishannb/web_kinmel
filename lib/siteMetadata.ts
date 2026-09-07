@@ -16,13 +16,20 @@ export function buildPageMetadata({
   path,
   title,
   description,
+  siteName = "Kinmel",
+  image = "/kinmel-logo/512.png",
+  imageAlt,
 }: {
   path: string;
   title: string;
   description: string;
+  siteName?: string;
+  image?: string;
+  imageAlt?: string;
 }): Metadata {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${SITE_URL}${normalizedPath}`;
+  const alt = imageAlt ?? siteName;
 
   return {
     title,
@@ -35,13 +42,13 @@ export function buildPageMetadata({
       description,
       url,
       type: "website",
-      siteName: "Kinmel",
+      siteName,
       images: [
         {
-          url: "/kinmel-logo/512.png",
+          url: image,
           width: 512,
           height: 512,
-          alt: "Kinmel",
+          alt,
         },
       ],
     },
@@ -49,7 +56,7 @@ export function buildPageMetadata({
       card: "summary",
       title,
       description,
-      images: ["/kinmel-logo/512.png"],
+      images: [image],
     },
     facebook: {
       appId: FACEBOOK_APP_ID,
