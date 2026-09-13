@@ -117,3 +117,56 @@ export async function fetchPublicProductJson(productId: string): Promise<{
     };
   };
 }
+
+export type PublicMediaProduct = {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  currency: string;
+  image_url: string;
+  product_url: string;
+  business_id?: string;
+  stock_quantity?: number | null;
+  variants?: Array<{ id: string; label: string; stock_quantity: number }>;
+  affiliate_influencer_business_id?: string | null;
+  seller?: {
+    business_name?: string;
+    instagram_username?: string;
+  };
+};
+
+export async function fetchPublicMediaProductsJson(opts: {
+  platform: string;
+  mediaId: string;
+}): Promise<{ products: PublicMediaProduct[]; platform: string; media_id: string }> {
+  const plat = encodeURIComponent(opts.platform.trim().toLowerCase());
+  const mid = encodeURIComponent(opts.mediaId.trim());
+  const url = `${getBackendHttpBase()}/public/media/${plat}/${mid}/products`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: backendRequestHeaders(),
+    cache: "no-store",
+  });
+  const raw = await res.text();
+  let data: unknown;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    throw new Error("Media products returned non-JSON (check backend URL).");
+  }
+  if (!res.ok) {
+    const err = data as { error?: string } | null;
+    throw new Error(err?.error || `Failed to load media products (${res.status})`);
+  }
+  const parsed = data as {
+    products?: PublicMediaProduct[];
+    platform?: string;
+    media_id?: string;
+  };
+  return {
+    products: Array.isArray(parsed.products) ? parsed.products : [],
+    platform: String(parsed.platform || opts.platform),
+    media_id: String(parsed.media_id || opts.mediaId),
+  };
+}

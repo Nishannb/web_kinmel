@@ -1,5 +1,5 @@
 import { backendRequestHeaders } from "@/lib/backendFetch";
-import { getBackendHttpBase } from "@/lib/publicConfig";
+import { BACKEND_HTTP_PROXY_PREFIX, getBackendHttpBase } from "@/lib/publicConfig";
 import { getSafeSession } from "@/lib/supabaseAuth";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -10,6 +10,14 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
   }
   return btoa(binary);
+}
+
+/** Prefer same-origin Next proxy in the browser so CORS / dead tunnels fail with a clear API error. */
+function uploadEndpoint(): string {
+  if (typeof window !== "undefined") {
+    return `${window.location.origin.replace(/\/+$/, "")}${BACKEND_HTTP_PROXY_PREFIX}/storage/upload-product-image`;
+  }
+  return `${getBackendHttpBase()}/storage/upload-product-image`;
 }
 
 /**
@@ -37,23 +45,31 @@ export async function uploadProductImageToR2(
     throw new Error("Image must be 6 MB or smaller.");
   }
   const imageBase64 = uint8ArrayToBase64(bytes);
-  const url = `${getBackendHttpBase()}/storage/upload-product-image`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      ...backendRequestHeaders({
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+  const url = uploadEndpoint();
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...backendRequestHeaders({
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        }),
+      },
+      body: JSON.stringify({
+        businessId,
+        imageBase64,
+        contentType,
       }),
-    },
-    body: JSON.stringify({
-      businessId,
-      imageBase64,
-      contentType,
-    }),
-  });
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Could not reach image upload API (${msg}). Is the Kinmel backend / ngrok tunnel running?`
+    );
+  }
   const raw = await res.text();
-  let parsed: { publicUrl?: string; error?: string; detail?: string };
+  let parsed: { publicUrl?: string; error?: string; detail?: string; code?: string };
   try {
     parsed = JSON.parse(raw) as typeof parsed;
   } catch {

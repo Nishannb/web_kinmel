@@ -83,7 +83,10 @@ type AppContextValue = {
   createEvent: (input: CreateEventInput) => Promise<string>;
   deleteEvent: (eventId: string) => Promise<void>;
   getEventById: (eventId: string) => LiveEvent | undefined;
-  createCatalogProduct: (input: CreateProductInput) => Promise<string>;
+  createCatalogProduct: (
+    input: CreateProductInput,
+    options?: { skipRefresh?: boolean }
+  ) => Promise<string>;
   updateCatalogProduct: (
     productId: string,
     input: UpdateCatalogProductInput
@@ -647,7 +650,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createCatalogProduct = useCallback(
-    async (input: CreateProductInput) => {
+    async (input: CreateProductInput, options?: { skipRefresh?: boolean }) => {
       if (!isReady) return "";
       if (!businessId) {
         throw new Error("No business found for this user.");
@@ -709,7 +712,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (variantRows.length > 0) {
         await replaceProductVariantsRows(productId, variantRows);
       }
-      await refreshData();
+      if (!options?.skipRefresh) {
+        await refreshData();
+      }
       return productId;
     },
     [buildDefaultProductUrl, businessId, isReady, refreshData, replaceProductVariantsRows]

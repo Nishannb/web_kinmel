@@ -255,6 +255,7 @@ function BuyProductContent() {
   const searchParams = useSearchParams();
   const productId = typeof params?.productId === "string" ? params.productId : "";
   const buyerKey = (searchParams.get("bk") || "").trim();
+  const affiliateId = (searchParams.get("aff") || "").trim();
   const forceEdit = searchParams.get("edit") === "1";
   const fromLive = searchParams.get("from") === "live";
   const sellerParam = (searchParams.get("seller") || "").trim().replace(/^@+/, "");
@@ -401,6 +402,9 @@ function BuyProductContent() {
     quantity,
     ...(selectedVariantId ? { variant_id: selectedVariantId } : {}),
     ...(buyerKey ? { buyer_key: buyerKey } : {}),
+    ...(affiliateId
+      ? { affiliate_influencer_business_id: affiliateId }
+      : {}),
   });
 
   const persistBuyerDetails = (
@@ -522,6 +526,9 @@ function BuyProductContent() {
           payment_method: paymentMethod,
           quantity,
           ...(selectedVariantId ? { variant_id: selectedVariantId } : {}),
+          ...(affiliateId
+            ? { affiliate_influencer_business_id: affiliateId }
+            : {}),
         });
         if (paymentMethod === "cod") {
           const bid = res.business_id || product?.business_id || "";

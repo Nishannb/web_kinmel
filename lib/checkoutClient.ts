@@ -13,6 +13,8 @@ export type CodCheckoutPayload = {
   variant_id?: string;
   /** Opaque key from DM link — links delivery profile to Instagram user after checkout. */
   buyer_key?: string;
+  /** Influencer business id from `?aff=` on the buy link. */
+  affiliate_influencer_business_id?: string;
 };
 
 export type ExpressCheckoutPayload = {
@@ -21,6 +23,7 @@ export type ExpressCheckoutPayload = {
   payment_method: "cod" | "esewa" | "khalti";
   quantity?: number;
   variant_id?: string;
+  affiliate_influencer_business_id?: string;
 };
 
 export type MaskedBuyerProfile = {
@@ -48,6 +51,11 @@ function checkoutJsonBody(payload: CodCheckoutPayload): string {
   if (vid) body.variant_id = vid;
   const bk = (payload.buyer_key || "").trim();
   if (bk) body.buyer_key = bk;
+  const aff = (payload.affiliate_influencer_business_id || "").trim();
+  if (aff) {
+    body.affiliate_influencer_business_id = aff;
+    body.aff = aff;
+  }
   return JSON.stringify(body);
 }
 
@@ -104,6 +112,13 @@ export async function postExpressCheckout(payload: ExpressCheckoutPayload): Prom
       qty: q,
       ...(payload.variant_id?.trim()
         ? { variant_id: payload.variant_id.trim() }
+        : {}),
+      ...(payload.affiliate_influencer_business_id?.trim()
+        ? {
+            affiliate_influencer_business_id:
+              payload.affiliate_influencer_business_id.trim(),
+            aff: payload.affiliate_influencer_business_id.trim(),
+          }
         : {}),
     }),
   });
@@ -373,5 +388,91 @@ export async function postKhaltiVerify(pidx: string): Promise<{
     quantity?: number;
     khalti_status?: string;
     detail?: unknown;
+  };
+}
+
+export type CartCodItem = {
+  product_id: string;
+  quantity?: number;
+  variant_id?: string;
+};
+
+export type CartCodPayload = {
+  items: CartCodItem[];
+  customer_name: string;
+  phone: string;
+  address: string;
+  city: string;
+  buyer_key?: string;
+  affiliate_influencer_business_id?: string;
+};
+
+export async function postCartCodCheckout(payload: CartCodPayload): Promise<{
+  ok: boolean;
+  orders?: Array<{
+    order_id: string;
+    business_id: string;
+    total: number;
+    currency: string;
+    quantity: number;
+    item_count: number;
+  }>;
+  order_id?: string | null;
+  total?: number;
+  currency?: string;
+  message?: string;
+}> {
+  const url = `${getBackendHttpBase()}/public/checkout/cart/cod`;
+  const items = (payload.items || [])
+    .map((item) => ({
+      product_id: String(item.product_id || "").trim(),
+      quantity: Math.min(99, Math.max(1, Math.floor(Number(item.quantity ?? 1)))),
+      ...(item.variant_id?.trim() ? { variant_id: item.variant_id.trim() } : {}),
+    }))
+    .filter((item) => item.product_id);
+  const body: Record<string, unknown> = {
+    items,
+    customer_name: payload.customer_name,
+    phone: payload.phone,
+    address: payload.address,
+    city: (payload.city || "").trim(),
+  };
+  const bk = (payload.buyer_key || "").trim();
+  if (bk) body.buyer_key = bk;
+  const aff = (payload.affiliate_influencer_business_id || "").trim();
+  if (aff) body.affiliate_influencer_business_id = aff;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      ...backendRequestHeaders({ "Content-Type": "application/json" }),
+    },
+    body: JSON.stringify(body),
+  });
+  const raw = await res.text();
+  let data: unknown;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    throw new Error("Cart checkout returned non-JSON.");
+  }
+  if (!res.ok) {
+    const err = data as { error?: string };
+    throw new Error(err?.error || `Cart checkout failed (${res.status})`);
+  }
+  return data as {
+    ok: boolean;
+    orders?: Array<{
+      order_id: string;
+      business_id: string;
+      total: number;
+      currency: string;
+      quantity: number;
+      item_count: number;
+    }>;
+    order_id?: string | null;
+    total?: number;
+    currency?: string;
+    message?: string;
   };
 }

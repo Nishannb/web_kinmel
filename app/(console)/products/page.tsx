@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useAppState } from "@/components/AppProvider";
 import { ConsoleScrollPage } from "@/components/ConsoleScrollPage";
+import { ImportProductsCsvModal } from "@/components/products/ImportProductsCsvModal";
 import { formatStorefrontPrice } from "@/lib/formatNpr";
 import { sanitizeBuyCodeInput, validateBuyCode } from "@/lib/buyCode";
 import type { Product } from "@/lib/appTypes";
@@ -60,6 +61,7 @@ export default function ProductsPage() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -204,14 +206,23 @@ export default function ProductsPage() {
         header={
           <div className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-white p-6">
             <h1 className="text-2xl font-semibold">Products</h1>
-            <button
-              type="button"
-              aria-label="Add product"
-              onClick={openAddForm}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-2xl font-light leading-none text-white transition hover:bg-zinc-800"
-            >
-              +
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setImportOpen(true)}
+                className="rounded-full border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 transition hover:bg-zinc-50"
+              >
+                Import CSV
+              </button>
+              <button
+                type="button"
+                aria-label="Add product"
+                onClick={openAddForm}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-2xl font-light leading-none text-white transition hover:bg-zinc-800"
+              >
+                +
+              </button>
+            </div>
           </div>
         }
       >
@@ -225,7 +236,9 @@ export default function ProductsPage() {
           {catalogProducts.length === 0 ? (
             <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
               <p className="text-base font-medium text-zinc-800">No products yet</p>
-              <p className="mt-1 text-sm text-zinc-500">Tap + to add your first product.</p>
+              <p className="mt-1 text-sm text-zinc-500">
+                Tap + to add a product, or Import CSV to upload many at once.
+              </p>
             </div>
           ) : (
             catalogProducts.map((product) => {
@@ -604,6 +617,8 @@ export default function ProductsPage() {
           </div>
         </div>
       ) : null}
+
+      <ImportProductsCsvModal open={importOpen} onClose={() => setImportOpen(false)} />
     </>
   );
 }
