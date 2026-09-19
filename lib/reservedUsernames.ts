@@ -5,6 +5,7 @@ export const RESERVED_STOREFRONT_USERNAMES = new Set([
   "clearmydata",
   "dashboard",
   "events",
+  "finalpost",
   "kinmel-backend",
   "live-selling",
   "login",

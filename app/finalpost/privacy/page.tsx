@@ -1,35 +1,35 @@
 import type { Metadata } from "next";
 import { LegalPageShell } from "@/components/legal/LegalPageShell";
-import { PINGDM_BRAND, pingdmPageMetadata } from "@/lib/pingdmLegal";
+import { FINALPOST_BRAND, finalpostPageMetadata } from "@/lib/finalpostLegal";
 
-export const metadata: Metadata = pingdmPageMetadata(
-  "/pingdm/privacy",
+export const metadata: Metadata = finalpostPageMetadata(
+  "/finalpost/privacy",
   "Privacy Policy",
-  "How PingDM collects, uses, and protects your data."
+  "How FinalPost collects, uses, and protects your data."
 );
 
-export default function PingDMPrivacyPolicyPage() {
+export default function FinalPostPrivacyPolicyPage() {
   return (
-    <LegalPageShell title="Privacy Policy" updated="August 24, 2026" brand={PINGDM_BRAND}>
+    <LegalPageShell title="Privacy Policy" updated="September 19, 2026" brand={FINALPOST_BRAND}>
       <section className="space-y-3">
         <h2>Who we are</h2>
         <p>
-          <strong>PingDM</strong> is the live shopping and social selling product operated by{" "}
-          <strong>Naman Technologies Private Limited</strong> (“PingDM,” “we,” “us”), a company
+          <strong>FinalPost</strong> is the live shopping and social selling product operated by{" "}
+          <strong>Naman Technologies Private Limited</strong> (“FinalPost,” “we,” “us”), a company
           registered in Nepal. This Privacy Policy explains how we collect, use, and protect
-          information when you use the PingDM mobile app and website.
+          information when you use the FinalPost mobile app and website.
         </p>
       </section>
 
       <section className="space-y-3">
         <h2>Overview</h2>
         <p>
-          PingDM is a live shopping and social selling platform for merchants and creators. Our
+          FinalPost is a live shopping and social selling platform for merchants and creators. Our
           clients are businesses that sell products through Instagram and Facebook. They connect
-          their own Instagram professional accounts and Facebook Pages inside PingDM so they can run
-          selling, customer conversations, and content publishing from one place. Buyers can comment
-          product buy codes and complete checkout on the web. This policy explains what information
-          we collect and how we use it.
+          their own Instagram professional accounts and Facebook Pages inside FinalPost so they can
+          run selling, customer conversations, and content publishing from one place. Buyers can
+          comment product buy codes and complete checkout on the web. This policy explains what
+          information we collect and how we use it.
         </p>
       </section>
 
@@ -37,7 +37,9 @@ export default function PingDMPrivacyPolicyPage() {
         <h2>Information we collect</h2>
         <ul>
           <li>Account details you provide (e.g. phone number, email, business name).</li>
-          <li>Product catalog, prices, images, orders, and live-event data you create in PingDM.</li>
+          <li>
+            Product catalog, prices, images, orders, and live-event data you create in FinalPost.
+          </li>
           <li>
             Instagram and Facebook account information when you connect those accounts, including
             account identity, username/profile identifiers, and the permissions you grant — used to
@@ -49,10 +51,10 @@ export default function PingDMPrivacyPolicyPage() {
           </li>
           <li>
             Message-related context needed to help you send order and product information through
-            Instagram or Messenger on your behalf, when you have authorized PingDM to do so.
+            Instagram or Messenger on your behalf, when you have authorized FinalPost to do so.
           </li>
           <li>
-            Usage and analytics data from the PingDM app and website (e.g. pages viewed, features
+            Usage and analytics data from the FinalPost app and website (e.g. pages viewed, features
             used, device type, approximate location) to understand how the service is used and
             improve it.
           </li>
@@ -65,20 +67,20 @@ export default function PingDMPrivacyPolicyPage() {
           <li>Operate your seller account, catalog, checkout links, and order management.</li>
           <li>
             <strong>Customer conversations:</strong> Read comments on your posts and live videos and
-            show them in PingDM so you can respond to buyers quickly. When a buyer comments with a
+            show them in FinalPost so you can respond to buyers quickly. When a buyer comments with a
             product buy code, help you send order and product information through Instagram or
             Messenger messages.
           </li>
           <li>
-            <strong>Content publishing:</strong> When you choose to post from PingDM, publish product
-            videos and Reels to your connected Instagram account and/or Facebook Page.
+            <strong>Content publishing:</strong> When you choose to post from FinalPost, publish
+            product videos and Reels to your connected Instagram account and/or Facebook Page.
           </li>
           <li>
             <strong>Account connection:</strong> Use basic profile and account information to confirm
             the correct Instagram/Facebook account is connected and to keep that connection working
             so the features above continue to function.
           </li>
-          <li>Process payments and fulfil orders placed through PingDM checkout.</li>
+          <li>Process payments and fulfil orders placed through FinalPost checkout.</li>
           <li>
             Measure usage patterns with analytics tools so we can improve performance, reliability,
             and product design.
@@ -91,24 +93,24 @@ export default function PingDMPrivacyPolicyPage() {
         <h2>Instagram &amp; Facebook (Meta) Platform Data</h2>
         <p>
           To use live shopping, comment-to-buy, customer conversations, and content publishing, you
-          must connect your Instagram professional account and/or Facebook Page and grant PingDM the
-          permissions Meta requires. We use Meta Platform Data (any information we obtain from Meta)
-          only on behalf of the client who authorized PingDM, and only to provide that client’s
-          service.
+          must connect your Instagram professional account and/or Facebook Page and grant FinalPost
+          the permissions Meta requires. We use Meta Platform Data (any information we obtain from
+          Meta) only on behalf of the client who authorized FinalPost, and only to provide that
+          client’s service.
         </p>
         <p>Specifically, Platform Data is used to:</p>
         <ul>
           <li>
             Show you comments from your Instagram/Facebook posts and live videos so you can manage
-            buyer conversations in PingDM.
+            buyer conversations in FinalPost.
           </li>
           <li>
             Send Instagram direct messages or Messenger messages on your behalf (for example,
             checkout links or product information after a buy-code comment), when you have authorized
-            PingDM to do so.
+            FinalPost to do so.
           </li>
           <li>
-            Publish Reels and related product videos you create or schedule in PingDM to your
+            Publish Reels and related product videos you create or schedule in FinalPost to your
             Instagram account and/or Facebook Page, when you choose to post.
           </li>
           <li>
@@ -141,7 +143,7 @@ export default function PingDMPrivacyPolicyPage() {
           </li>
           <li>Payment providers (e.g. eSewa, Khalti) to process buyer payments.</li>
           <li>Infrastructure providers (hosting, storage) that process data strictly on our behalf.</li>
-          <li>Analytics tools used to measure app and website usage and improve PingDM.</li>
+          <li>Analytics tools used to measure app and website usage and improve FinalPost.</li>
           <li>When required by law or to protect rights, safety, and security.</li>
         </ul>
       </section>
@@ -149,7 +151,7 @@ export default function PingDMPrivacyPolicyPage() {
       <section className="space-y-3">
         <h2>Requests from public authorities</h2>
         <p>
-          Naman Technologies Private Limited (“PingDM,” “we”) may receive requests from public
+          Naman Technologies Private Limited (“FinalPost,” “we”) may receive requests from public
           authorities, courts, or law enforcement for personal data or personal information of users
           (including data obtained via Meta Platform APIs, where applicable).
         </p>
@@ -190,8 +192,8 @@ export default function PingDMPrivacyPolicyPage() {
         <p>
           We keep your data while your account is active and as needed to provide the service, meet
           legal obligations, and resolve disputes. You may request deletion of your data by contacting
-          us (see Contact below). You may also disconnect Instagram or Facebook in PingDM or revoke
-          access in Meta settings; related Platform Data access for those features will stop.
+          us (see Contact below). You may also disconnect Instagram or Facebook in FinalPost or
+          revoke access in Meta settings; related Platform Data access for those features will stop.
         </p>
       </section>
 
@@ -207,7 +209,7 @@ export default function PingDMPrivacyPolicyPage() {
       <section className="space-y-3">
         <h2>Children</h2>
         <p>
-          PingDM is intended for sellers who are at least 18 years old. We do not knowingly collect
+          FinalPost is intended for sellers who are at least 18 years old. We do not knowingly collect
           personal information from children.
         </p>
       </section>
@@ -216,7 +218,7 @@ export default function PingDMPrivacyPolicyPage() {
         <h2>Changes</h2>
         <p>
           We may update this policy from time to time. We will post the revised version on this page
-          and update the &quot;Last updated&quot; date. Continued use of PingDM after changes means
+          and update the &quot;Last updated&quot; date. Continued use of FinalPost after changes means
           you accept the updated policy.
         </p>
       </section>
@@ -224,7 +226,7 @@ export default function PingDMPrivacyPolicyPage() {
       <section className="space-y-3">
         <h2>Contact</h2>
         <p>
-          PingDM is the product operated by <strong>Naman Technologies Private Limited</strong>,
+          FinalPost is the product operated by <strong>Naman Technologies Private Limited</strong>,
           registered in Nepal.
         </p>
         <p>

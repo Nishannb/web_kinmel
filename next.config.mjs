@@ -23,6 +23,25 @@ const nextConfig = {
       tailwindcss: path.join(webRoot, "node_modules/tailwindcss"),
     },
   },
+  async redirects() {
+    return [
+      {
+        source: "/pingdm",
+        destination: "/finalpost/privacy",
+        permanent: true,
+      },
+      {
+        source: "/pingdm/privacy",
+        destination: "/finalpost/privacy",
+        permanent: true,
+      },
+      {
+        source: "/pingdm/terms",
+        destination: "/finalpost/terms",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
