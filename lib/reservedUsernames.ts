@@ -1,6 +1,7 @@
 /** Paths that must not be treated as Instagram usernames. */
 export const RESERVED_STOREFRONT_USERNAMES = new Set([
   "api",
+  "auth",
   "buy",
   "clearmydata",
   "dashboard",
